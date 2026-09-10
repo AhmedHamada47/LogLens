@@ -1,0 +1,102 @@
+@model List<LogLens.Models.SessionSummaryViewModel>
+@{
+    ViewData["Title"] = "Dashboard";
+    var totalSessions = Model.Count;
+    var totalEntries = Model.Sum(s => s.TotalCount);
+    var totalErrors = Model.Sum(s => s.ErrorCount);
+}
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <div>
+        <h2 class="mb-1">Dashboard</h2>
+        <p class="page-subtitle mb-0">
+            @totalSessions session@(totalSessions != 1 ? "s" : "")
+            &middot; @totalEntries.ToString("N0") entries
+            @if (totalErrors > 0) { <span>&middot; <strong style="color:var(--error);">@totalErrors.ToString("N0")</strong> errors</span> }
+        </p>
+    </div>
+    <a asp-controller="Logs" asp-action="Upload" class="btn btn-accent">
+        + Upload Logs
+    </a>
+</div>
+
+@if (!Model.Any())
+{
+    <div class="empty-state">
+        <div class="empty-state-icon">&#9672;</div>
+        <h4 style="color: var(--text-secondary); font-weight: 600;">No log sessions yet</h4>
+        <p class="page-subtitle mt-2">Upload a log file or paste log content to get started.</p>
+        <a asp-controller="Logs" asp-action="Upload" class="btn btn-accent btn-lg mt-3">
+            Upload Logs
+        </a>
+    </div>
+}
+else
+{
+    @if (Model.Count > 4)
+    {
+        <div class="mb-3">
+            <input type="text" class="form-control form-control-sm" id="sessionSearch" placeholder="Filter sessions..." style="max-width: 300px;" />
+        </div>
+    }
+    <div class="row g-3" id="sessionGrid">
+        @foreach (var session in Model)
+        {
+            <div class="col-md-6 col-lg-4 session-col" data-name="@session.Name.ToLower()">
+                <div class="session-card">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div style="flex: 1; min-width: 0;">
+                            <h5 class="fw-bold mb-1" style="letter-spacing: -0.02em;">@session.Name</h5>
+                            <small class="page-subtitle">@session.CreatedAt.ToString("MMM dd, yyyy HH:mm")</small>
+                        </div>
+                        <form asp-controller="Logs" asp-action="Delete" method="post" class="d-inline">
+                            <input type="hidden" name="id" value="@session.Id" />
+                            <button type="submit" class="delete-btn" onclick="return confirm('Delete this session?')" title="Delete session">&#10005;</button>
+                        </form>
+                    </div>
+                    @if (session.SourceFileName != null)
+                    {
+                        <div class="session-filename">&#128196; @session.SourceFileName</div>
+                    }
+                    <div class="session-meta">
+                        <div class="session-stat">
+                            <span class="num" style="color: var(--accent);">@session.TotalCount.ToString("N0")</span>
+                            <span class="label">total</span>
+                        </div>
+                        @if (session.ErrorCount > 0)
+                        {
+                            <div class="session-stat">
+                                <span class="num" style="color: var(--error);">@session.ErrorCount.ToString("N0")</span>
+                                <span class="label">errors</span>
+                            </div>
+                        }
+                        @if (session.WarnCount > 0)
+                        {
+                            <div class="session-stat">
+                                <span class="num" style="color: var(--warn);">@session.WarnCount.ToString("N0")</span>
+                                <span class="label">warns</span>
+                            </div>
+                        }
+                    </div>
+                    <a asp-controller="Logs" asp-action="View" asp-route-id="@session.Id" class="view-btn">
+                        View Logs &rarr;
+                    </a>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@section Scripts {
+    <script>
+        var searchInput = document.getElementById('sessionSearch');
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                var q = this.value.toLowerCase();
+                document.querySelectorAll('.session-col').forEach(function(el) {
+                    el.style.display = el.getAttribute('data-name').indexOf(q) >= 0 ? '' : 'none';
+                });
+            });
+        }
+    </script>
+}

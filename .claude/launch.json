@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "loglens",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "C:\\Users\\User\\source\\repos\\LogLens"],
+      "port": 5259,
+      "url": "http://localhost:5259"
+    }
+  ]
+}
