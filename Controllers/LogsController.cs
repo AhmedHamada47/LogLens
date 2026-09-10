@@ -240,30 +240,6 @@ public class LogsController : Controller
             }
         }
 
-        // Field statistics - top sources
-        var topSources = new List<FieldStat>();
-        using (var cmd = conn.CreateCommand())
-        {
-            cmd.CommandText = @"SELECT Source, COUNT(*) as cnt FROM LogEntries
-                WHERE SessionId = $sid AND Source != '' GROUP BY Source ORDER BY cnt DESC LIMIT 15";
-            cmd.Parameters.AddWithValue("$sid", id);
-            using var rdr = await cmd.ExecuteReaderAsync();
-            while (await rdr.ReadAsync())
-                topSources.Add(new FieldStat { Value = rdr.GetString(0), Count = rdr.GetInt32(1) });
-        }
-
-        // Top correlation IDs
-        var topCorrelations = new List<FieldStat>();
-        using (var cmd = conn.CreateCommand())
-        {
-            cmd.CommandText = @"SELECT CorrelationId, COUNT(*) as cnt FROM LogEntries
-                WHERE SessionId = $sid AND CorrelationId IS NOT NULL AND CorrelationId != ''
-                GROUP BY CorrelationId ORDER BY cnt DESC LIMIT 10";
-            cmd.Parameters.AddWithValue("$sid", id);
-            using var rdr = await cmd.ExecuteReaderAsync();
-            while (await rdr.ReadAsync())
-                topCorrelations.Add(new FieldStat { Value = rdr.GetString(0), Count = rdr.GetInt32(1) });
-        }
 
         await conn.CloseAsync();
         conn.Dispose();
@@ -284,9 +260,7 @@ public class LogsController : Controller
             TotalCount = totalCount,
             FilteredCount = filteredCount,
             ErrorSummary = errorSummary,
-            Timeline = timeline,
-            TopSources = topSources,
-            TopCorrelations = topCorrelations
+            Timeline = timeline
         };
 
         return View(vm);
@@ -467,13 +441,14 @@ public class LogsController : Controller
     }
 
     [HttpGet]
-    public async Task<IActionResult> Export(int id, string format = "csv")
+    public async Task<IActionResult> Export(int id, string format = "csv", string? search = null, string? level = null)
     {
-        var entries = await _db.LogEntries
-            .AsNoTracking()
-            .Where(e => e.SessionId == id)
-            .OrderBy(e => e.Timestamp)
-            .ToListAsync();
+        var query = _db.LogEntries.AsNoTracking().Where(e => e.SessionId == id);
+        if (!string.IsNullOrWhiteSpace(level))
+            query = query.Where(e => e.Level == level);
+        if (!string.IsNullOrWhiteSpace(search))
+            query = query.Where(e => e.Message.Contains(search) || e.Source.Contains(search));
+        var entries = await query.OrderBy(e => e.Timestamp).ToListAsync();
 
         if (format == "json")
         {

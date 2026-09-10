@@ -22,8 +22,6 @@ public class LogFilterViewModel
     public int PageSize { get; set; } = 200;
     public List<ErrorSummaryItem> ErrorSummary { get; set; } = new();
     public List<TimelineBucket> Timeline { get; set; } = new();
-    public List<FieldStat> TopSources { get; set; } = new();
-    public List<FieldStat> TopCorrelations { get; set; } = new();
 }
 
 public class ErrorSummaryItem
@@ -32,12 +30,6 @@ public class ErrorSummaryItem
     public string Level { get; set; } = "";
     public int Count { get; set; }
     public DateTime LastSeen { get; set; }
-}
-
-public class FieldStat
-{
-    public string Value { get; set; } = "";
-    public int Count { get; set; }
 }
 
 public class TimelineBucket
