@@ -46,8 +46,13 @@ public class LogsController : Controller
         Stream? stream = null;
         bool disposeStream = false;
 
-        if (model.LogFile != null && model.LogFile.Length > 0)
+        if (model.LogFile != null)
         {
+            if (model.LogFile.Length == 0)
+            {
+                ModelState.AddModelError("LogFile", "The uploaded file is empty.");
+                return View(model);
+            }
             var ext = Path.GetExtension(model.LogFile.FileName).ToLowerInvariant();
             if (!AllowedExtensions.Contains(ext))
             {
@@ -71,7 +76,7 @@ public class LogsController : Controller
 
         var sessionName = string.IsNullOrWhiteSpace(model.SessionName)
             ? $"Session {DateTime.Now:yyyy-MM-dd HH:mm}"
-            : model.SessionName;
+            : model.SessionName.Length > 200 ? model.SessionName[..200] : model.SessionName;
 
         var session = new LogSession
         {
@@ -87,6 +92,14 @@ public class LogsController : Controller
         {
             await StreamInsertEntries(stream, session.Id);
             _logger.LogInformation("Imported log session {SessionId} ({SessionName})", session.Id, sessionName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to parse log session {SessionId}", session.Id);
+            _db.LogSessions.Remove(session);
+            await _db.SaveChangesAsync();
+            ModelState.AddModelError("", "Failed to parse the log file. Please check the format and try again.");
+            return View(model);
         }
         finally
         {

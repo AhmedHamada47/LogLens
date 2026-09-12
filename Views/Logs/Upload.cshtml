@@ -1,0 +1,97 @@
+@model LogLens.Models.LogUploadViewModel
+@{
+    ViewData["Title"] = "Upload Logs";
+}
+
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="page-header text-center">
+            <h2>Upload Logs</h2>
+            <p class="page-subtitle">Upload a Serilog file or paste log content to analyze</p>
+        </div>
+
+        <form asp-action="Upload" method="post" enctype="multipart/form-data" id="uploadForm">
+            <div class="mb-4">
+                <label asp-for="SessionName" class="form-label">Session Name</label>
+                <input asp-for="SessionName" class="form-control" placeholder="e.g. API crash Sep 10" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Log File</label>
+                <div class="upload-zone" id="dropZone" role="button" tabindex="0" aria-label="Drop zone for log file upload">
+                    <div class="upload-icon" aria-hidden="true">&#128196;</div>
+                    <p class="mb-1 fw-medium">Drag & drop a log file here</p>
+                    <p class="page-subtitle small mb-0">or click to browse &middot; .log, .txt, .json up to 500 MB</p>
+                    <input asp-for="LogFile" class="form-control d-none" id="fileInput" accept=".log,.txt,.json" aria-label="Log file input" />
+                    <div id="fileName" class="mt-2 fw-bold" style="display:none; color: var(--success);"></div>
+                </div>
+            </div>
+
+            <div class="divider-or" aria-hidden="true">OR</div>
+
+            <div class="mb-4">
+                <label asp-for="PastedLogs" class="form-label">Paste Log Content</label>
+                <textarea asp-for="PastedLogs" class="form-control" rows="8"
+                          placeholder="Paste your log content here..."
+                          style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; resize: vertical;"></textarea>
+            </div>
+
+            <div asp-validation-summary="All" class="text-danger mb-3"></div>
+
+            <button type="submit" class="btn btn-accent btn-lg w-100" id="submitBtn">
+                <span id="btnText">Parse & Analyze</span>
+                <span id="btnSpinner" style="display:none;">
+                    <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                    Processing...
+                </span>
+            </button>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    @await Html.PartialAsync("_ValidationScriptsPartial")
+    <script>
+        var dropZone = document.getElementById('dropZone');
+        var fileInput = document.getElementById('fileInput');
+        var fileNameDiv = document.getElementById('fileName');
+
+        dropZone.addEventListener('click', function() { fileInput.click(); });
+        dropZone.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } });
+        dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.classList.add('drag-over'); });
+        dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('drag-over'); });
+        dropZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                showFileName(e.dataTransfer.files[0]);
+            }
+        });
+        fileInput.addEventListener('change', function() { if (fileInput.files.length) showFileName(fileInput.files[0]); });
+
+        function showFileName(file) {
+            var size = file.size < 1024*1024 ? (file.size/1024).toFixed(1)+' KB' : (file.size/1024/1024).toFixed(1)+' MB';
+            fileNameDiv.textContent = file.name + ' (' + size + ')';
+            fileNameDiv.style.display = 'block';
+        }
+
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            var btn = document.getElementById('submitBtn');
+            var btnText = document.getElementById('btnText');
+            var btnSpinner = document.getElementById('btnSpinner');
+
+            setTimeout(function() {
+                btnText.style.display = 'none';
+                btnSpinner.style.display = 'inline';
+                btn.disabled = true;
+            }, 10);
+
+            setTimeout(function() {
+                btnText.style.display = '';
+                btnSpinner.style.display = 'none';
+                btn.disabled = false;
+            }, 300000);
+        });
+    </script>
+}

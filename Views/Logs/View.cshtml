@@ -1,0 +1,652 @@
+@model LogLens.Models.LogFilterViewModel
+@{
+    ViewData["Title"] = Model.Session.Name;
+    var fromStr = Model.FromTime;
+    var toStr = Model.ToTime;
+    var hasFilters = !string.IsNullOrEmpty(Model.SearchTerm) || !string.IsNullOrEmpty(Model.Level) ||
+                     !string.IsNullOrEmpty(Model.CorrelationId) || !string.IsNullOrEmpty(fromStr) || !string.IsNullOrEmpty(toStr) || Model.UseRegex;
+    var timelineJson = System.Text.Json.JsonSerializer.Serialize(Model.Timeline);
+}
+
+<!-- Breadcrumb -->
+<nav class="breadcrumb-nav" aria-label="Breadcrumb">
+    <a asp-controller="Home" asp-action="Index">Dashboard</a>
+    <span class="breadcrumb-sep" aria-hidden="true">/</span>
+    <span aria-current="page">@Model.Session.Name</span>
+    @if (hasFilters)
+    {
+        <span class="breadcrumb-sep" aria-hidden="true">/</span>
+        <span style="color: var(--accent);">Filtered</span>
+    }
+</nav>
+
+<!-- Compact Header -->
+<div class="view-header">
+    <div class="view-header-left">
+        <a asp-controller="Home" asp-action="Index" class="back-link" aria-label="Back to dashboard">&larr;</a>
+        <div>
+            <h4 class="view-title">@Model.Session.Name</h4>
+            <div class="view-meta">
+                <span>@Model.Session.CreatedAt.ToString("MMM dd, yyyy HH:mm")</span>
+                <span class="meta-dot">&middot;</span>
+                <span class="inline-stat"><strong style="color:var(--accent);">@Model.TotalCount.ToString("N0")</strong> entries</span>
+                @foreach (var kv in Model.LevelCounts.OrderByDescending(x => x.Value))
+                {
+                    var c = kv.Key.ToLower() switch { "error" => "error", "warn" => "warn", "info" => "info", "debug" => "debug", "fatal" => "fatal", "trace" => "trace", _ => "info" };
+                    <span class="meta-dot">&middot;</span>
+                    <span class="inline-stat"><strong style="color:var(--@c);">@kv.Value.ToString("N0")</strong> @kv.Key.ToLower()</span>
+                }
+            </div>
+            @if (!string.IsNullOrEmpty(Model.CorrelationId))
+            {
+                <div class="mt-1">
+                    <span class="level-badge badge-info" style="font-size:0.6rem;">Correlation: @Model.CorrelationId</span>
+                    <a asp-action="View" asp-route-id="@Model.SessionId" class="clear-trace-link">clear</a>
+                </div>
+            }
+        </div>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <button class="density-toggle" id="densityToggle" title="Toggle row density" aria-pressed="false">Compact</button>
+        <a asp-action="Export" asp-route-id="@Model.SessionId" asp-route-format="csv"
+           asp-route-search="@Model.SearchTerm" asp-route-level="@Model.Level"
+           class="btn btn-sm btn-outline-secondary">CSV</a>
+        <a asp-action="Export" asp-route-id="@Model.SessionId" asp-route-format="json"
+           asp-route-search="@Model.SearchTerm" asp-route-level="@Model.Level"
+           class="btn btn-sm btn-outline-secondary">JSON</a>
+    </div>
+</div>
+
+<!-- Insights Row -->
+@if (Model.Timeline.Count > 1 || Model.ErrorSummary.Any())
+{
+    <div class="insights-row">
+        <button class="insights-toggle" id="insightsToggle" type="button" aria-expanded="false" aria-controls="insightsContent">
+            <span class="insights-arrow" id="insightsArrow" aria-hidden="true">&#9654;</span>
+            <span>Insights</span>
+        </button>
+        <div class="insights-content" id="insightsContent" style="display:none;">
+            <div class="row g-3">
+                @if (Model.Timeline.Count > 1)
+                {
+                    <div class="@(Model.ErrorSummary.Any() ? "col-md-7" : "col-12")">
+                        <div class="insight-card">
+                            <div class="insight-card-header">
+                                <span>Activity Timeline</span>
+                                <span class="insight-hint">volume / minute</span>
+                            </div>
+                            <canvas id="timelineChart" height="55" aria-label="Activity timeline chart" role="img"></canvas>
+                        </div>
+                    </div>
+                }
+                @if (Model.ErrorSummary.Any())
+                {
+                    <div class="@(Model.Timeline.Count > 1 ? "col-md-5" : "col-12")">
+                        <div class="insight-card">
+                            <div class="insight-card-header">
+                                <span>Top Errors</span>
+                                <span class="insight-hint">@Model.ErrorSummary.Count unique</span>
+                            </div>
+                            <div class="error-summary-compact">
+                                @foreach (var err in Model.ErrorSummary.Take(5))
+                                {
+                                    <div class="err-row">
+                                        <span class="err-count">@err.Count&times;</span>
+                                        <span class="err-msg" title="@err.Message">@(err.Message.Length > 80 ? err.Message[..80] + "..." : err.Message)</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+    <form method="get" asp-action="View" asp-route-id="@Model.SessionId" id="filterForm" class="filter-form" role="search">
+        @if (!string.IsNullOrEmpty(Model.CorrelationId))
+        {
+            <input type="hidden" name="correlationId" value="@Model.CorrelationId" />
+        }
+        <div class="filter-row">
+            <div class="filter-pills" role="tablist" aria-label="Level filter">
+                <a asp-action="View" asp-route-id="@Model.SessionId"
+                   asp-route-search="@Model.SearchTerm" asp-route-correlationId="@Model.CorrelationId"
+                   asp-route-from="@fromStr" asp-route-to="@toStr"
+                   asp-route-sortBy="@Model.SortBy" asp-route-sortOrder="@Model.SortOrder"
+                   class="level-pill @(string.IsNullOrEmpty(Model.Level) ? "active" : "")"
+                   role="tab" aria-selected="@(string.IsNullOrEmpty(Model.Level) ? "true" : "false")">All</a>
+                @foreach (var kv in Model.LevelCounts.OrderByDescending(x => x.Value))
+                {
+                    <a asp-action="View" asp-route-id="@Model.SessionId" asp-route-level="@kv.Key"
+                       asp-route-search="@Model.SearchTerm" asp-route-correlationId="@Model.CorrelationId"
+                       asp-route-from="@fromStr" asp-route-to="@toStr"
+                       asp-route-sortBy="@Model.SortBy" asp-route-sortOrder="@Model.SortOrder"
+                       class="level-pill @(Model.Level == kv.Key ? "active" : "")"
+                       role="tab" aria-selected="@(Model.Level == kv.Key ? "true" : "false")">
+                        @kv.Key <span class="pill-count">@kv.Value.ToString("N0")</span>
+                    </a>
+                }
+            </div>
+            <div class="filter-controls">
+                <div class="search-group">
+                    <label for="searchInput" class="visually-hidden">Search</label>
+                    <input name="search" value="@Model.SearchTerm" class="form-control form-control-sm" placeholder="@(Model.UseRegex ? "Regex pattern..." : "Search messages...")" id="searchInput" style="width: 200px;" />
+                    <button type="button" class="regex-toggle @(Model.UseRegex ? "active" : "")" id="regexToggle" title="Toggle regex search" aria-pressed="@(Model.UseRegex ? "true" : "false")">.*</button>
+                    <input type="hidden" name="useRegex" id="useRegexInput" value="@(Model.UseRegex ? "true" : "false")" />
+                </div>
+                <label for="fromTime" class="visually-hidden">From time</label>
+                <input type="time" name="from" value="@fromStr" class="form-control form-control-sm" style="width: 120px;" id="fromTime" title="From time" />
+                <label for="toTime" class="visually-hidden">To time</label>
+                <input type="time" name="to" value="@toStr" class="form-control form-control-sm" style="width: 120px;" id="toTime" title="To time" />
+                <label for="sortOrderSelect" class="visually-hidden">Sort order</label>
+                <select name="sortOrder" class="form-select form-select-sm" id="sortOrderSelect" style="width: 110px;">
+                    @if (Model.SortOrder == "desc") { <option value="desc" selected>Newest</option> } else { <option value="desc">Newest</option> }
+                    @if (Model.SortOrder == "asc") { <option value="asc" selected>Oldest</option> } else { <option value="asc">Oldest</option> }
+                </select>
+                <button type="submit" class="btn btn-accent btn-sm">Go</button>
+                @if (hasFilters)
+                {
+                    <a asp-action="View" asp-route-id="@Model.SessionId" class="reset-btn" title="Reset all filters" aria-label="Reset all filters">&times;</a>
+                }
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Keyboard hint -->
+<div class="kbd-hint" aria-label="Keyboard shortcuts summary">
+    <kbd>?</kbd> Shortcuts &nbsp; <kbd>/</kbd> Search &nbsp; <kbd>E</kbd> Errors &nbsp; <kbd>W</kbd> Warns &nbsp; <kbd>J</kbd>/<kbd>K</kbd> Scroll &nbsp; <kbd>R</kbd> Reset
+</div>
+
+<!-- Virtual Scroll Log Table -->
+<div class="vs-status-bar" id="vsStatus" aria-live="polite">
+    <span id="vsRange"></span>
+    <span id="vsTotal"></span>
+</div>
+<div class="log-scroll-container" id="logContainer" style="height: calc(100vh - 320px); overflow-y: auto; position: relative;" role="region" aria-label="Log entries">
+    <button class="scroll-fab scroll-fab-top" id="scrollTop" title="Scroll to top" aria-label="Scroll to top" hidden>&#9650;</button>
+    <button class="scroll-fab scroll-fab-bottom" id="scrollBottom" title="Scroll to bottom" aria-label="Scroll to bottom">&#9660;</button>
+    <table class="table log-table table-borderless mb-0" id="logTable" style="table-layout: fixed;">
+        <thead style="position: sticky; top: 0; z-index: 2; background: var(--bg);">
+            <tr>
+                <th scope="col" style="width: 110px; resize: horizontal; overflow: hidden;">Time</th>
+                <th scope="col" style="width: 65px;">Level</th>
+                <th scope="col" style="width: 150px; resize: horizontal; overflow: hidden;">Source</th>
+                <th scope="col">Message</th>
+            </tr>
+        </thead>
+        <tbody id="logBody">
+            <tr><td colspan="4" class="text-center py-5" style="color: var(--text-muted);">Loading...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Shortcuts Modal -->
+<div id="shortcutsModal" class="shortcuts-overlay" hidden role="dialog" aria-label="Keyboard shortcuts">
+    <div class="shortcuts-modal">
+        <h5>Keyboard Shortcuts</h5>
+        <div class="shortcut-row"><span class="shortcut-key">/</span> <span class="shortcut-desc">Focus search</span></div>
+        <div class="shortcut-row"><span class="shortcut-key">E</span> <span class="shortcut-desc">Filter errors only</span></div>
+        <div class="shortcut-row"><span class="shortcut-key">W</span> <span class="shortcut-desc">Filter warnings only</span></div>
+        <div class="shortcut-row"><span class="shortcut-key">R</span> <span class="shortcut-desc">Reset all filters</span></div>
+        <div class="shortcut-row"><span class="shortcut-key">J / K</span> <span class="shortcut-desc">Scroll down / up</span></div>
+        <div class="shortcut-row"><span class="shortcut-key">G</span> <span class="shortcut-desc">Scroll to top</span></div>
+        <div class="shortcut-row"><span class="shortcut-key">Shift+G</span> <span class="shortcut-desc">Scroll to bottom</span></div>
+        <div class="shortcut-row"><span class="shortcut-key">Esc</span> <span class="shortcut-desc">Close panel / blur input</span></div>
+        <div class="shortcut-row"><span class="shortcut-key">?</span> <span class="shortcut-desc">Toggle this help</span></div>
+    </div>
+</div>
+
+<!-- Trace Panel Overlay -->
+<div id="traceOverlay" class="trace-overlay" hidden role="dialog" aria-label="Request trace">
+    <div class="trace-panel">
+        <div class="trace-header">
+            <div>
+                <span class="form-label mb-0" id="traceTitle">Request Trace</span>
+                <span class="page-subtitle ms-2" id="traceSubtitle"></span>
+            </div>
+            <button class="trace-close" onclick="closeTrace()" aria-label="Close trace panel">&times;</button>
+        </div>
+        <div class="trace-body" id="traceBody">
+            <div class="text-center py-4" style="color: var(--text-muted);">Loading trace...</div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        var VS_BASE_URL = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Url.Action("EntriesApi", "Logs")));
+        var VS_TRACE_URL = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Url.Action("Trace", "Logs", new { id = Model.SessionId })));
+        var VS_VIEW_URL = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Url.Action("View", "Logs", new { id = Model.SessionId })));
+        var VS_ERROR_URL = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Url.Action("View", "Logs", new { id = Model.SessionId, level = "ERROR", sortOrder = Model.SortOrder })));
+        var VS_WARN_URL = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Url.Action("View", "Logs", new { id = Model.SessionId, level = "WARN", sortOrder = Model.SortOrder })));
+
+        document.getElementById('sortOrderSelect').addEventListener('change', function() { document.getElementById('filterForm').submit(); });
+
+        // Regex toggle
+        document.getElementById('regexToggle').addEventListener('click', function() {
+            var input = document.getElementById('useRegexInput');
+            var active = input.value !== 'true';
+            input.value = active ? 'true' : 'false';
+            this.classList.toggle('active', active);
+            this.setAttribute('aria-pressed', active);
+            document.getElementById('searchInput').placeholder = active ? 'Regex pattern...' : 'Search messages...';
+        });
+
+        // Insights toggle
+        var insightsBtn = document.getElementById('insightsToggle');
+        if (insightsBtn) {
+            insightsBtn.addEventListener('click', function() {
+                var content = document.getElementById('insightsContent');
+                var arrow = document.getElementById('insightsArrow');
+                var expanded = content.style.display !== 'none';
+                content.style.display = expanded ? 'none' : '';
+                arrow.innerHTML = expanded ? '&#9654;' : '&#9660;';
+                this.setAttribute('aria-expanded', !expanded);
+            });
+        }
+
+        function escapeHtml(t) { var d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+        function renderCallStack(stackText) {
+            var lines = stackText.split('\n').filter(function(l) { return l.trim(); });
+            var frames = [];
+            var exceptionLines = [];
+            lines.forEach(function(line) {
+                var trimmed = line.trim();
+                var atMatch = trimmed.match(/^at\s+(.+?)(?:\s+in\s+(.+?):line\s+(\d+))?$/);
+                if (atMatch) {
+                    var method = atMatch[1];
+                    var file = atMatch[2] || null;
+                    var lineNum = atMatch[3] || null;
+                    var parenIdx = method.indexOf('(');
+                    var className = '', methodName = method, params = '';
+                    if (parenIdx > 0) {
+                        params = method.substring(parenIdx);
+                        var fullName = method.substring(0, parenIdx);
+                        var lastDot = fullName.lastIndexOf('.');
+                        if (lastDot > 0) { className = fullName.substring(0, lastDot); methodName = fullName.substring(lastDot + 1); }
+                        else { methodName = fullName; }
+                    }
+                    frames.push({ className: className, method: methodName, params: params, file: file, line: lineNum });
+                } else if (trimmed.startsWith('---')) {
+                    frames.push({ separator: true });
+                } else {
+                    exceptionLines.push(trimmed);
+                }
+            });
+            if (frames.length === 0) return '<pre class="stack-trace mt-1" style="font-size:0.65rem;max-height:200px;">' + escapeHtml(stackText) + '</pre>';
+            var html = '<div class="call-stack mt-1">';
+            if (exceptionLines.length > 0) html += '<div class="cs-exception">' + escapeHtml(exceptionLines.join(' ')) + '</div>';
+            html += '<div class="cs-frames">';
+            frames.forEach(function(f, i) {
+                if (f.separator) { html += '<div class="cs-separator">--- End of inner exception ---</div>'; return; }
+                var isApp = f.className && !f.className.match(/^(System\.|Microsoft\.|lambda_)/);
+                var fc = isApp ? 'cs-frame cs-frame-app' : 'cs-frame cs-frame-system';
+                html += '<div class="' + fc + '"><span class="cs-num">' + i + '</span><div class="cs-detail">';
+                if (f.className) html += '<span class="cs-class">' + escapeHtml(f.className) + '.</span>';
+                html += '<span class="cs-method">' + escapeHtml(f.method) + '</span><span class="cs-params">' + escapeHtml(f.params) + '</span>';
+                if (f.file) html += '<div class="cs-file">' + escapeHtml(f.file) + ':' + f.line + '</div>';
+                html += '</div></div>';
+            });
+            html += '</div></div>';
+            return html;
+        }
+
+        // ===== VIRTUAL SCROLLING =====
+        var VS = {
+            sessionId: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.SessionId)),
+            search: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.SearchTerm ?? "")),
+            level: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Level ?? "")),
+            correlationId: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.CorrelationId ?? "")),
+            from: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.FromTime ?? "")),
+            to: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ToTime ?? "")),
+            sortBy: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.SortBy)),
+            sortOrder: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.SortOrder)),
+            useRegex: @(Model.UseRegex ? "true" : "false"),
+            ROW_HEIGHT: 32,
+            BUFFER: 20,
+            FETCH_SIZE: 200,
+            MAX_CACHE: 5000,
+            totalCount: 0,
+            cache: {},
+            cacheKeys: [],
+            pendingFetches: {},
+            container: null,
+            tbody: null,
+            lastRenderStart: -1,
+            lastRenderEnd: -1
+        };
+
+        VS.buildUrl = function(offset, limit) {
+            var p = VS_BASE_URL + '/' + VS.sessionId + '?offset=' + offset + '&limit=' + limit +
+                '&sortBy=' + VS.sortBy + '&sortOrder=' + VS.sortOrder;
+            if (VS.search) p += '&search=' + encodeURIComponent(VS.search);
+            if (VS.useRegex) p += '&useRegex=true';
+            if (VS.level) p += '&level=' + encodeURIComponent(VS.level);
+            if (VS.correlationId) p += '&correlationId=' + encodeURIComponent(VS.correlationId);
+            if (VS.from) p += '&from=' + encodeURIComponent(VS.from);
+            if (VS.to) p += '&to=' + encodeURIComponent(VS.to);
+            return p;
+        };
+
+        VS.evictCache = function() {
+            while (VS.cacheKeys.length > VS.MAX_CACHE) {
+                var old = VS.cacheKeys.shift();
+                delete VS.cache[old];
+            }
+        };
+
+        VS.fetchRange = function(offset, limit) {
+            var key = offset + ':' + limit;
+            if (VS.pendingFetches[key]) return VS.pendingFetches[key];
+            if (VS.totalCount > 0) {
+                var alreadyCached = true;
+                for (var i = offset; i < offset + limit && i < VS.totalCount; i++) {
+                    if (!VS.cache[i]) { alreadyCached = false; break; }
+                }
+                if (alreadyCached) return Promise.resolve();
+            }
+            var p = fetch(VS.buildUrl(offset, limit))
+                .then(function(r) {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.json();
+                })
+                .then(function(data) {
+                    VS.totalCount = data.totalCount;
+                    data.entries.forEach(function(e, i) {
+                        var idx = offset + i;
+                        if (!VS.cache[idx]) VS.cacheKeys.push(idx);
+                        VS.cache[idx] = e;
+                    });
+                    VS.evictCache();
+                    delete VS.pendingFetches[key];
+                })
+                .catch(function(err) {
+                    delete VS.pendingFetches[key];
+                    console.error('Failed to fetch log entries:', err);
+                });
+            VS.pendingFetches[key] = p;
+            return p;
+        };
+
+        VS.renderRow = function(entry) {
+            var lc = entry.level.toLowerCase();
+            var rowClass = {error:'log-error',warn:'log-warn',info:'log-info',debug:'log-debug',fatal:'log-fatal',trace:'log-trace'}[lc] || '';
+            var badgeClass = {error:'badge-error',warn:'badge-warn',info:'badge-info',debug:'badge-debug',fatal:'badge-fatal',trace:'badge-trace'}[lc] || 'badge-info';
+            var ts = entry.timestamp.length >= 19 ? entry.timestamp.substring(11, 23) : entry.timestamp;
+            var msg = escapeHtml(entry.message);
+            if (VS.search) {
+                try {
+                    var re = VS.useRegex
+                        ? new RegExp('(' + VS.search + ')', 'gi')
+                        : new RegExp('(' + VS.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+                    msg = msg.replace(re, '<mark>$1</mark>');
+                } catch(e) {}
+            }
+            var extras = '';
+            if (entry.stackTrace) extras += ' <button class="stack-toggle" onclick="event.stopPropagation(); vsToggleStack(this, ' + escapeHtml(JSON.stringify(entry.stackTrace)) + ')" aria-label="Toggle stack trace">[stack]</button>';
+            if (entry.correlationId) extras += ' <a href="' + VS_VIEW_URL + '?correlationId=' + encodeURIComponent(entry.correlationId) + '" class="correlation-link" title="Filter by correlation">' + escapeHtml(entry.correlationId.substring(0,8)) + '</a>';
+            if (lc === 'error' || lc === 'fatal' || lc === 'warn') extras += ' <button class="trace-btn" onclick="event.stopPropagation(); openTrace(' + entry.id + ')" title="Trace">Trace</button>';
+
+            return '<tr class="log-row ' + rowClass + '" style="height:' + VS.ROW_HEIGHT + 'px;">' +
+                '<td class="timestamp-cell">' + escapeHtml(ts) + '</td>' +
+                '<td><span class="level-badge ' + badgeClass + '">' + escapeHtml(entry.level) + '</span></td>' +
+                '<td class="source-cell" title="' + escapeHtml(entry.source) + '">' + escapeHtml(entry.source) + '</td>' +
+                '<td class="message-cell"><span class="msg-text">' + msg + '</span>' +
+                (extras ? '<span class="msg-actions">' + extras + '</span>' : '') + '</td></tr>';
+        };
+
+        VS.render = function() {
+            var scrollTop = VS.container.scrollTop;
+            var viewH = VS.container.clientHeight;
+            var startIdx = Math.max(0, Math.floor(scrollTop / VS.ROW_HEIGHT) - VS.BUFFER);
+            var endIdx = Math.min(VS.totalCount, Math.ceil((scrollTop + viewH) / VS.ROW_HEIGHT) + VS.BUFFER);
+
+            if (startIdx === VS.lastRenderStart && endIdx === VS.lastRenderEnd) return;
+            VS.lastRenderStart = startIdx;
+            VS.lastRenderEnd = endIdx;
+
+            // Check if we need to fetch
+            var needFetch = false;
+            for (var i = startIdx; i < endIdx; i++) {
+                if (!VS.cache[i]) { needFetch = true; break; }
+            }
+            if (needFetch) {
+                var fetchStart = Math.max(0, startIdx - VS.FETCH_SIZE / 2);
+                fetchStart = Math.floor(fetchStart / VS.FETCH_SIZE) * VS.FETCH_SIZE;
+                VS.fetchRange(fetchStart, VS.FETCH_SIZE).then(function() { VS.doRender(startIdx, endIdx); });
+                return;
+            }
+            VS.doRender(startIdx, endIdx);
+        };
+
+        VS.doRender = function(startIdx, endIdx) {
+            if (VS.totalCount === 0) {
+                VS.tbody.innerHTML = '<tr><td colspan="4"><div class="empty-state"><div class="empty-state-icon">&#128270;</div><div class="empty-state-title">No entries found</div><div class="empty-state-hint">Try adjusting your filters or search terms</div></div></td></tr>';
+                document.getElementById('vsRange').textContent = '0';
+                document.getElementById('vsTotal').textContent = 'of 0 entries';
+                return;
+            }
+            var topPad = startIdx * VS.ROW_HEIGHT;
+            var bottomPad = Math.max(0, (VS.totalCount - endIdx) * VS.ROW_HEIGHT);
+            var html = '<tr style="height:' + topPad + 'px;"><td colspan="4"></td></tr>';
+            for (var i = startIdx; i < endIdx; i++) {
+                var entry = VS.cache[i];
+                if (entry) html += VS.renderRow(entry);
+                else html += '<tr style="height:' + VS.ROW_HEIGHT + 'px;"><td colspan="4"></td></tr>';
+            }
+            html += '<tr style="height:' + bottomPad + 'px;"><td colspan="4"></td></tr>';
+            VS.tbody.innerHTML = html;
+
+            var visStart = Math.floor(VS.container.scrollTop / VS.ROW_HEIGHT) + 1;
+            var visEnd = Math.min(VS.totalCount, Math.ceil((VS.container.scrollTop + VS.container.clientHeight) / VS.ROW_HEIGHT));
+            document.getElementById('vsRange').textContent = visStart.toLocaleString() + ' – ' + visEnd.toLocaleString();
+            document.getElementById('vsTotal').textContent = 'of ' + VS.totalCount.toLocaleString() + (VS.totalCount !== @Model.TotalCount ? ' (filtered)' : '') + ' entries';
+
+            // Scroll button visibility
+            document.getElementById('scrollTop').hidden = VS.container.scrollTop < 200;
+            document.getElementById('scrollBottom').hidden = VS.container.scrollTop > VS.container.scrollHeight - VS.container.clientHeight - 200;
+        };
+
+        // Init
+        VS.container = document.getElementById('logContainer');
+        VS.tbody = document.getElementById('logBody');
+        VS.fetchRange(0, VS.FETCH_SIZE).then(function() {
+            VS.render();
+        });
+
+        var scrollTimer = null;
+        VS.container.addEventListener('scroll', function() {
+            if (scrollTimer) cancelAnimationFrame(scrollTimer);
+            scrollTimer = requestAnimationFrame(function() { VS.render(); });
+        });
+
+        // Scroll buttons
+        document.getElementById('scrollTop').addEventListener('click', function() { VS.container.scrollTop = 0; });
+        document.getElementById('scrollBottom').addEventListener('click', function() { VS.container.scrollTop = VS.container.scrollHeight; });
+
+        // Click-to-expand: show full message on row click
+        VS.tbody.addEventListener('click', function(e) {
+            var row = e.target.closest('.log-row');
+            if (!row || e.target.closest('.trace-btn') || e.target.closest('.correlation-link') || e.target.closest('.stack-toggle')) return;
+            var next = row.nextElementSibling;
+            if (next && next.classList.contains('vs-detail-row')) {
+                next.remove();
+                row.classList.remove('log-row-expanded');
+                return;
+            }
+            // Find the entry data from row index
+            var allRows = VS.tbody.querySelectorAll('.log-row');
+            var rowIdx = Array.from(allRows).indexOf(row);
+            if (rowIdx < 0) return;
+            var entryIdx = VS.lastRenderStart + rowIdx;
+            var entry = VS.cache[entryIdx];
+            if (!entry) return;
+            row.classList.add('log-row-expanded');
+            var tr = document.createElement('tr');
+            tr.className = 'vs-detail-row';
+            var detail = '<div class="row-detail"><strong>Full Message:</strong>\n' + escapeHtml(entry.message);
+            if (entry.source) detail += '\n\n<strong>Source:</strong> ' + escapeHtml(entry.source);
+            if (entry.correlationId) detail += '\n<strong>Correlation:</strong> ' + escapeHtml(entry.correlationId);
+            detail += '\n<strong>Timestamp:</strong> ' + escapeHtml(entry.timestamp);
+            if (entry.stackTrace) detail += '\n\n<strong>Stack Trace:</strong>\n' + renderCallStack(entry.stackTrace);
+            detail += '</div>';
+            tr.innerHTML = '<td colspan="4" style="padding:0;">' + detail + '</td>';
+            row.after(tr);
+        });
+
+        function vsToggleStack(el, stackText) {
+            var row = el.closest('tr');
+            var existing = row.nextElementSibling;
+            if (existing && existing.classList.contains('vs-stack-row')) {
+                existing.remove();
+                return;
+            }
+            var tr = document.createElement('tr');
+            tr.className = 'vs-stack-row';
+            tr.innerHTML = '<td colspan="4" style="padding: 0 0.85rem 0.85rem 0.85rem;">' + renderCallStack(stackText) + '</td>';
+            row.after(tr);
+        }
+
+        // Search debounce — instant results as you type
+        var searchDebounce = null;
+        document.getElementById('searchInput').addEventListener('input', function() {
+            var val = this.value;
+            clearTimeout(searchDebounce);
+            searchDebounce = setTimeout(function() {
+                VS.search = val;
+                VS.cache = {};
+                VS.cacheKeys = [];
+                VS.pendingFetches = {};
+                VS.totalCount = 0;
+                VS.lastRenderStart = -1;
+                VS.lastRenderEnd = -1;
+                VS.container.scrollTop = 0;
+                VS.fetchRange(0, VS.FETCH_SIZE).then(function() { VS.render(); });
+            }, 400);
+        });
+
+        // Density toggle
+        document.getElementById('densityToggle').addEventListener('click', function() {
+            var container = document.getElementById('logContainer');
+            var isCompact = container.classList.toggle('density-compact');
+            this.textContent = isCompact ? 'Comfortable' : 'Compact';
+            this.setAttribute('aria-pressed', isCompact);
+            VS.ROW_HEIGHT = isCompact ? 24 : 32;
+            VS.lastRenderStart = -1;
+            VS.lastRenderEnd = -1;
+            VS.render();
+            try { localStorage.setItem('ll-density', isCompact ? 'compact' : 'normal'); } catch(e) {}
+        });
+        // Restore density preference
+        try {
+            if (localStorage.getItem('ll-density') === 'compact') {
+                document.getElementById('densityToggle').click();
+            }
+        } catch(e) {}
+
+        // Shortcuts modal
+        function toggleShortcuts() {
+            var m = document.getElementById('shortcutsModal');
+            m.hidden = !m.hidden;
+        }
+        document.getElementById('shortcutsModal').addEventListener('click', function(e) {
+            if (e.target === this) toggleShortcuts();
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (!document.getElementById('shortcutsModal').hidden && e.key === 'Escape') { toggleShortcuts(); return; }
+            if (!document.getElementById('traceOverlay').hidden && e.key === 'Escape') { closeTrace(); return; }
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+                if (e.key === 'Escape') e.target.blur();
+                return;
+            }
+            switch(e.key) {
+                case '?': toggleShortcuts(); break;
+                case '/': e.preventDefault(); document.getElementById('searchInput').focus(); break;
+                case 'e': case 'E': window.location.href = VS_ERROR_URL; break;
+                case 'w': case 'W': window.location.href = VS_WARN_URL; break;
+                case 'r': case 'R': window.location.href = VS_VIEW_URL; break;
+                case 'j': case 'J': VS.container.scrollTop += VS.ROW_HEIGHT * 3; break;
+                case 'k': case 'K': VS.container.scrollTop -= VS.ROW_HEIGHT * 3; break;
+                case 'g': VS.container.scrollTop = 0; break;
+                case 'G': VS.container.scrollTop = VS.container.scrollHeight; break;
+            }
+        });
+
+        // Trace panel
+        function openTrace(entryId) {
+            var overlay = document.getElementById('traceOverlay');
+            overlay.hidden = false;
+            document.getElementById('traceBody').innerHTML = '<div class="text-center py-4" style="color: var(--text-muted);">Loading...</div>';
+            document.getElementById('traceSubtitle').textContent = '';
+            fetch(VS_TRACE_URL + '?entryId=' + entryId)
+                .then(function(r) {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.json();
+                })
+                .then(function(data) {
+                    var mode = data.mode === 'correlation' ? 'Correlation: ' + data.correlationId : 'Nearby context';
+                    document.getElementById('traceSubtitle').textContent = mode + ' · ' + data.entries.length + ' entries';
+                    var html = '<div class="trace-timeline">';
+                    data.entries.forEach(function(e) {
+                        var lc = e.level.toLowerCase();
+                        var bc = {error:'badge-error',warn:'badge-warn',info:'badge-info',debug:'badge-debug',fatal:'badge-fatal',trace:'badge-trace'}[lc] || 'badge-info';
+                        var hl = e.id === data.entryId ? ' trace-step-highlight' : '';
+                        var ts = e.timestamp.length > 19 ? e.timestamp.substring(11, 19) : e.timestamp;
+                        html += '<div class="trace-step' + hl + '"><div class="trace-step-line"></div><div class="trace-step-dot trace-dot-' + lc + '"></div>';
+                        html += '<div class="trace-step-content"><div class="d-flex align-items-center gap-2">';
+                        html += '<span class="timestamp-cell" style="font-size:0.7rem;">' + escapeHtml(ts) + '</span>';
+                        html += '<span class="level-badge ' + bc + '">' + escapeHtml(e.level) + '</span>';
+                        if (e.source) html += '<span style="font-size:0.7rem;color:var(--text-muted);">' + escapeHtml(e.source) + '</span>';
+                        html += '</div><div class="trace-step-msg">' + escapeHtml(e.message) + '</div>';
+                        if (e.stackTrace) html += renderCallStack(e.stackTrace);
+                        html += '</div></div>';
+                    });
+                    html += '</div>';
+                    document.getElementById('traceBody').innerHTML = html;
+                    var hl = document.querySelector('.trace-step-highlight');
+                    if (hl) hl.scrollIntoView({block: 'center'});
+                })
+                .catch(function() { document.getElementById('traceBody').innerHTML = '<div class="text-center py-4" style="color:var(--error);">Failed to load trace.</div>'; });
+        }
+        function closeTrace() { document.getElementById('traceOverlay').hidden = true; }
+        document.getElementById('traceOverlay').addEventListener('click', function(e) { if (e.target === this) closeTrace(); });
+
+        // Timeline chart
+        @if (Model.Timeline.Count > 1)
+        {
+            <text>
+            (function() {
+                var data = @Html.Raw(timelineJson);
+                var canvas = document.getElementById('timelineChart');
+                if (!canvas || !data.length) return;
+                var ctx = canvas.getContext('2d');
+                var w = canvas.width = canvas.parentElement.clientWidth;
+                var h = canvas.height = 55;
+                var max = 1;
+                data.forEach(function(d) { var t = d.Info + d.Warn + d.Error; if (t > max) max = t; });
+                var barW = Math.max(2, (w / data.length) - 1);
+                data.forEach(function(d, i) {
+                    var x = (i / data.length) * w;
+                    var infoH = (d.Info / max) * (h - 2);
+                    var warnH = (d.Warn / max) * (h - 2);
+                    var errH = (d.Error / max) * (h - 2);
+                    ctx.fillStyle = 'rgba(59,130,246,0.4)';
+                    ctx.fillRect(x, h - infoH - warnH - errH, barW, infoH);
+                    ctx.fillStyle = 'rgba(245,158,11,0.7)';
+                    ctx.fillRect(x, h - warnH - errH, barW, warnH);
+                    ctx.fillStyle = 'rgba(239,68,68,0.85)';
+                    ctx.fillRect(x, h - errH, barW, errH);
+                });
+            })();
+            </text>
+        }
+    </script>
+}

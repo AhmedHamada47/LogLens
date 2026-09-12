@@ -62,35 +62,49 @@ using (var scope = app.Services.CreateScope())
     var conn = db.Database.GetDbConnection();
     conn.Open();
     using var cmd = conn.CreateCommand();
-    cmd.CommandText = @"
-        CREATE INDEX IF NOT EXISTS IX_LogEntries_SessionId_Timestamp ON LogEntries(SessionId, Timestamp);
-        CREATE INDEX IF NOT EXISTS IX_LogEntries_SessionId_Level ON LogEntries(SessionId, Level);
-    ";
+
+    cmd.CommandText = "CREATE TABLE IF NOT EXISTS SchemaVersion (Version INTEGER NOT NULL)";
     cmd.ExecuteNonQuery();
 
-    cmd.CommandText = "PRAGMA table_info(LogEntries)";
-    bool hasCorrelationId = false;
-    using (var rdr = cmd.ExecuteReader())
+    cmd.CommandText = "SELECT COALESCE(MAX(Version), 0) FROM SchemaVersion";
+    var schemaVersion = Convert.ToInt32(cmd.ExecuteScalar());
+
+    if (schemaVersion < 1)
     {
-        while (rdr.Read())
-            if (rdr.GetString(1) == "CorrelationId") hasCorrelationId = true;
-    }
-    if (!hasCorrelationId)
-    {
-        cmd.CommandText = "ALTER TABLE LogEntries ADD COLUMN CorrelationId TEXT";
+        cmd.CommandText = @"
+            CREATE INDEX IF NOT EXISTS IX_LogEntries_SessionId_Timestamp ON LogEntries(SessionId, Timestamp);
+            CREATE INDEX IF NOT EXISTS IX_LogEntries_SessionId_Level ON LogEntries(SessionId, Level);
+        ";
+        cmd.ExecuteNonQuery();
+
+        cmd.CommandText = "PRAGMA table_info(LogEntries)";
+        bool hasCorrelationId = false;
+        using (var rdr = cmd.ExecuteReader())
+        {
+            while (rdr.Read())
+                if (rdr.GetString(1) == "CorrelationId") hasCorrelationId = true;
+        }
+        if (!hasCorrelationId)
+        {
+            cmd.CommandText = "ALTER TABLE LogEntries ADD COLUMN CorrelationId TEXT";
+            cmd.ExecuteNonQuery();
+        }
+
+        cmd.CommandText = @"
+            CREATE INDEX IF NOT EXISTS IX_LogEntries_SessionId_CorrelationId ON LogEntries(SessionId, CorrelationId);
+        ";
+        cmd.ExecuteNonQuery();
+
+        cmd.CommandText = "INSERT INTO SchemaVersion (Version) VALUES (1)";
         cmd.ExecuteNonQuery();
     }
-    cmd.CommandText = @"
-        CREATE INDEX IF NOT EXISTS IX_LogEntries_SessionId_CorrelationId ON LogEntries(SessionId, CorrelationId);
-    ";
-    cmd.ExecuteNonQuery();
+
     conn.Close();
 }
 
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
-    app.UseHsts();
 }
 
 app.UseResponseCompression();
@@ -103,7 +117,13 @@ app.Use(async (context, next) =>
     await next();
 });
 
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        ctx.Context.Response.Headers["Cache-Control"] = "public, max-age=604800";
+    }
+});
 app.UseRouting();
 app.UseAuthorization();
 
