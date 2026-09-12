@@ -5,27 +5,23 @@ namespace LogLens.Services;
 
 public class LogParserService
 {
-    // Serilog with timezone: 2026-09-07 20:57:44.041 +02:00 [INF] [Source] [extras]... Message
     private static readonly Regex SerilogTz = new(
         @"^(?<ts>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:[\.,]\d+)?)\s+[+-]\d{2}:\d{2}\s+\[(?<level>[A-Za-z]+)\]\s+\[(?<source>[^\]]+)\](?:\s*\[[^\]]*\])*\s*(?<msg>.*)",
         RegexOptions.Compiled);
 
-    // Serilog no timezone: 2024-01-15 10:30:45.123 [ERR] Source - Message
     private static readonly Regex SerilogNoTz = new(
         @"^(?<ts>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:[\.,]\d+)?)\s+\[(?<level>[A-Za-z]+)\]\s+(?<source>\S+)?\s*[-:]?\s*(?<msg>.+)",
         RegexOptions.Compiled);
 
-    // Standard: 2024-01-15 10:30:45 ERROR Source - Message
     private static readonly Regex Standard = new(
         @"^(?<ts>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:[\.,]\d+)?)\s+(?<level>TRACE|DEBUG|INFO|WARN|WARNING|ERROR|FATAL|CRITICAL|ERR|WRN|INF|DBG|FTL|TRC|VRB)\s+(?<source>\S+)?\s*[-:]?\s*(?<msg>.+)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    // Bracketed: [2024-01-15 10:30:45] [Error] message
     private static readonly Regex Bracketed = new(
         @"^\[?(?<ts>\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[\.,]\d+)?)\]?\s*\[?(?<level>TRACE|DEBUG|INFO|WARN|WARNING|ERROR|FATAL|CRITICAL|ERR|WRN|INF|DBG|FTL|TRC|VRB)\]?\s*(?<msg>.+)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    private static readonly Regex[] Patterns = { SerilogTz, SerilogNoTz, Standard, Bracketed };
+    private static readonly Regex[] Patterns = [SerilogTz, SerilogNoTz, Standard, Bracketed];
 
     private static readonly Regex CorrelationIdPattern = new(
         @"\[CorrelationId[:\s]*([^\]]+)\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -88,15 +84,6 @@ public class LogParserService
     public List<LogEntry> ParseStream(Stream stream)
     {
         return ParseStreamEnumerable(stream).ToList();
-    }
-
-    public List<LogEntry> Parse(string rawText)
-    {
-        if (string.IsNullOrWhiteSpace(rawText))
-            return [];
-
-        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(rawText));
-        return ParseStream(stream);
     }
 
     private static LogEntry? TryParseLine(string line, out Regex? matched)

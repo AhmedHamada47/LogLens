@@ -1,6 +1,26 @@
+using System.Diagnostics;
+using System.Net;
 using Microsoft.EntityFrameworkCore;
 using LogLens.Data;
 using LogLens.Services;
+
+const int DefaultPort = 5189;
+
+// --- Single instance check ---
+var mutexName = "LogLens_SingleInstance";
+using var mutex = new Mutex(true, mutexName, out bool isNewInstance);
+if (!isNewInstance)
+{
+    OpenBrowser($"http://127.0.0.1:{DefaultPort}");
+    return;
+}
+
+// --- SQLite in AppData ---
+var appDataDir = Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+    "LogLens");
+Directory.CreateDirectory(appDataDir);
+var dbPath = Path.Combine(appDataDir, "loglens.db");
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,8 +29,10 @@ builder.Services.AddControllersWithViews(options =>
     options.MaxModelBindingCollectionSize = int.MaxValue;
 });
 
+// --- Bind to localhost only ---
 builder.WebHost.ConfigureKestrel(options =>
 {
+    options.Listen(IPAddress.Loopback, DefaultPort);
     options.Limits.MaxRequestBodySize = 500L * 1024 * 1024;
     options.Limits.RequestHeadersTimeout = TimeSpan.FromMinutes(5);
     options.Limits.KeepAliveTimeout = TimeSpan.FromMinutes(5);
@@ -24,9 +46,11 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(optio
 });
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlite("Data Source=loglens.db"));
+    options.UseSqlite($"Data Source={dbPath}"));
 
-builder.Services.AddScoped<LogParserService>();
+builder.Services.AddSingleton<LogParserService>();
+
+builder.Services.AddResponseCompression();
 
 var app = builder.Build();
 
@@ -67,8 +91,17 @@ if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
     app.UseHsts();
-    app.UseHttpsRedirection();
 }
+
+app.UseResponseCompression();
+
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["Content-Security-Policy"] = "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; img-src 'self' data:;";
+    await next();
+});
 
 app.UseStaticFiles();
 app.UseRouting();
@@ -78,4 +111,22 @@ app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
 
+// --- Auto-open browser after server starts ---
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    OpenBrowser($"http://127.0.0.1:{DefaultPort}");
+});
+
 app.Run();
+
+// --- Helper ---
+static void OpenBrowser(string url)
+{
+    try
+    {
+        Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+    }
+    catch
+    {
+    }
+}

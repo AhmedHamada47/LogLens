@@ -1,3 +1,5 @@
+using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -8,16 +10,20 @@ using LogLens.Services;
 
 namespace LogLens.Controllers;
 
+[AutoValidateAntiforgeryToken]
 public class LogsController : Controller
 {
     private readonly AppDbContext _db;
     private readonly LogParserService _parser;
-    private const int PageSize = 200;
+    private readonly ILogger<LogsController> _logger;
 
-    public LogsController(AppDbContext db, LogParserService parser)
+    private static readonly string[] AllowedExtensions = [".log", ".txt", ".json"];
+
+    public LogsController(AppDbContext db, LogParserService parser, ILogger<LogsController> logger)
     {
         _db = db;
         _parser = parser;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -42,12 +48,19 @@ public class LogsController : Controller
 
         if (model.LogFile != null && model.LogFile.Length > 0)
         {
+            var ext = Path.GetExtension(model.LogFile.FileName).ToLowerInvariant();
+            if (!AllowedExtensions.Contains(ext))
+            {
+                ModelState.AddModelError("LogFile", "Only .log, .txt, and .json files are allowed.");
+                return View(model);
+            }
+
             stream = model.LogFile.OpenReadStream();
             disposeStream = true;
         }
         else if (!string.IsNullOrWhiteSpace(model.PastedLogs))
         {
-            stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(model.PastedLogs));
+            stream = new MemoryStream(Encoding.UTF8.GetBytes(model.PastedLogs));
             disposeStream = true;
         }
         else
@@ -73,6 +86,7 @@ public class LogsController : Controller
         try
         {
             await StreamInsertEntries(stream, session.Id);
+            _logger.LogInformation("Imported log session {SessionId} ({SessionName})", session.Id, sessionName);
         }
         finally
         {
@@ -84,59 +98,45 @@ public class LogsController : Controller
 
     private async Task StreamInsertEntries(Stream stream, int sessionId)
     {
-        var conn = new SqliteConnection(_db.Database.GetConnectionString());
+        await using var conn = new SqliteConnection(_db.Database.GetConnectionString());
         await conn.OpenAsync();
 
-        try
+        using (var pragma = conn.CreateCommand())
         {
-            using (var pragma = conn.CreateCommand())
-            {
-                pragma.CommandText = "PRAGMA journal_mode=WAL; PRAGMA synchronous=OFF; PRAGMA cache_size=-64000; PRAGMA temp_store=MEMORY;";
-                await pragma.ExecuteNonQueryAsync();
-            }
-
-            using var transaction = await conn.BeginTransactionAsync();
-
-            using var insert = conn.CreateCommand();
-            insert.CommandText = @"INSERT INTO LogEntries (Timestamp, Level, Source, Message, StackTrace, CorrelationId, RawLine, SessionId)
-                                   VALUES ($ts, $lvl, $src, $msg, $st, $cid, $raw, $sid)";
-
-            var pTs = new SqliteParameter("$ts", "");
-            var pLvl = new SqliteParameter("$lvl", "");
-            var pSrc = new SqliteParameter("$src", "");
-            var pMsg = new SqliteParameter("$msg", "");
-            var pSt = new SqliteParameter("$st", DBNull.Value);
-            var pCid = new SqliteParameter("$cid", DBNull.Value);
-            var pRaw = new SqliteParameter("$raw", DBNull.Value);
-            var pSid = new SqliteParameter("$sid", sessionId);
-            insert.Parameters.AddRange(new[] { pTs, pLvl, pSrc, pMsg, pSt, pCid, pRaw, pSid });
-            await insert.PrepareAsync();
-
-            foreach (var entry in _parser.ParseStreamEnumerable(stream))
-            {
-                pTs.Value = entry.Timestamp.ToString("o");
-                pLvl.Value = entry.Level;
-                pSrc.Value = entry.Source ?? "";
-                pMsg.Value = entry.Message;
-                pSt.Value = (object?)entry.StackTrace ?? DBNull.Value;
-                pCid.Value = (object?)entry.CorrelationId ?? DBNull.Value;
-                pRaw.Value = (object?)entry.RawLine ?? DBNull.Value;
-                insert.ExecuteNonQuery();
-            }
-
-            await transaction.CommitAsync();
-
-            using (var restore = conn.CreateCommand())
-            {
-                restore.CommandText = "PRAGMA synchronous=NORMAL;";
-                await restore.ExecuteNonQueryAsync();
-            }
+            pragma.CommandText = "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA cache_size=-64000; PRAGMA temp_store=MEMORY;";
+            await pragma.ExecuteNonQueryAsync();
         }
-        finally
+
+        await using var transaction = await conn.BeginTransactionAsync();
+
+        using var insert = conn.CreateCommand();
+        insert.CommandText = @"INSERT INTO LogEntries (Timestamp, Level, Source, Message, StackTrace, CorrelationId, RawLine, SessionId)
+                               VALUES ($ts, $lvl, $src, $msg, $st, $cid, $raw, $sid)";
+
+        var pTs = new SqliteParameter("$ts", "");
+        var pLvl = new SqliteParameter("$lvl", "");
+        var pSrc = new SqliteParameter("$src", "");
+        var pMsg = new SqliteParameter("$msg", "");
+        var pSt = new SqliteParameter("$st", DBNull.Value);
+        var pCid = new SqliteParameter("$cid", DBNull.Value);
+        var pRaw = new SqliteParameter("$raw", DBNull.Value);
+        var pSid = new SqliteParameter("$sid", sessionId);
+        insert.Parameters.AddRange(new[] { pTs, pLvl, pSrc, pMsg, pSt, pCid, pRaw, pSid });
+        await insert.PrepareAsync();
+
+        foreach (var entry in _parser.ParseStreamEnumerable(stream))
         {
-            await conn.CloseAsync();
-            conn.Dispose();
+            pTs.Value = entry.Timestamp.ToString("o");
+            pLvl.Value = entry.Level;
+            pSrc.Value = entry.Source ?? "";
+            pMsg.Value = entry.Message;
+            pSt.Value = (object?)entry.StackTrace ?? DBNull.Value;
+            pCid.Value = (object?)entry.CorrelationId ?? DBNull.Value;
+            pRaw.Value = (object?)entry.RawLine ?? DBNull.Value;
+            await insert.ExecuteNonQueryAsync();
         }
+
+        await transaction.CommitAsync();
     }
 
     [HttpGet]
@@ -147,7 +147,7 @@ public class LogsController : Controller
         var session = await _db.LogSessions.AsNoTracking().FirstOrDefaultAsync(s => s.Id == id);
         if (session == null) return NotFound();
 
-        var conn = new SqliteConnection(_db.Database.GetConnectionString());
+        await using var conn = new SqliteConnection(_db.Database.GetConnectionString());
         await conn.OpenAsync();
         if (useRegex) RegisterRegexp(conn);
 
@@ -164,28 +164,7 @@ public class LogsController : Controller
 
         var where = "WHERE SessionId = $sid";
         var sqlParams = new List<SqliteParameter> { new("$sid", id) };
-
-        ApplySearchFilter(search, useRegex, ref where, sqlParams);
-        if (!string.IsNullOrWhiteSpace(level))
-        {
-            where += " AND Level = $level";
-            sqlParams.Add(new("$level", level));
-        }
-        if (!string.IsNullOrWhiteSpace(correlationId))
-        {
-            where += " AND CorrelationId = $cid";
-            sqlParams.Add(new("$cid", correlationId));
-        }
-        if (!string.IsNullOrWhiteSpace(from))
-        {
-            where += " AND SUBSTR(Timestamp, 12, 5) >= $from";
-            sqlParams.Add(new("$from", from));
-        }
-        if (!string.IsNullOrWhiteSpace(to))
-        {
-            where += " AND SUBSTR(Timestamp, 12, 5) <= $to";
-            sqlParams.Add(new("$to", to));
-        }
+        ApplyFilters(search, useRegex, level, correlationId, from, to, ref where, sqlParams);
 
         int filteredCount;
         using (var cmd = conn.CreateCommand())
@@ -195,7 +174,6 @@ public class LogsController : Controller
             filteredCount = Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }
 
-        // Error summary - top unique error/fatal messages
         var errorSummary = new List<ErrorSummaryItem>();
         using (var cmd = conn.CreateCommand())
         {
@@ -211,12 +189,11 @@ public class LogsController : Controller
                     Message = rdr.GetString(0),
                     Level = rdr.GetString(1),
                     Count = rdr.GetInt32(2),
-                    LastSeen = DateTime.Parse(rdr.GetString(3))
+                    LastSeen = DateTime.TryParse(rdr.GetString(3), out var dt) ? dt : DateTime.MinValue
                 });
             }
         }
 
-        // Timeline - bucket by minute
         var timeline = new List<TimelineBucket>();
         using (var cmd = conn.CreateCommand())
         {
@@ -239,10 +216,6 @@ public class LogsController : Controller
                 });
             }
         }
-
-
-        await conn.CloseAsync();
-        conn.Dispose();
 
         var vm = new LogFilterViewModel
         {
@@ -269,11 +242,10 @@ public class LogsController : Controller
     [HttpGet]
     public async Task<IActionResult> Trace(int id, int entryId)
     {
-        var conn = new SqliteConnection(_db.Database.GetConnectionString());
+        await using var conn = new SqliteConnection(_db.Database.GetConnectionString());
         await conn.OpenAsync();
 
         string? correlationId = null;
-        DateTime errorTimestamp = DateTime.MinValue;
 
         using (var cmd = conn.CreateCommand())
         {
@@ -284,7 +256,6 @@ public class LogsController : Controller
             if (await rdr.ReadAsync())
             {
                 correlationId = rdr.IsDBNull(0) ? null : rdr.GetString(0);
-                errorTimestamp = DateTime.Parse(rdr.GetString(1));
             }
         }
 
@@ -314,7 +285,6 @@ public class LogsController : Controller
         }
         else
         {
-            // No CorrelationId — get 20 entries before and 20 after the target entry by Id
             using var cmd = conn.CreateCommand();
             cmd.CommandText = @"SELECT Id, Timestamp, Level, Source, Message, StackTrace FROM (
                 SELECT Id, Timestamp, Level, Source, Message, StackTrace FROM LogEntries
@@ -340,9 +310,6 @@ public class LogsController : Controller
             }
         }
 
-        await conn.CloseAsync();
-        conn.Dispose();
-
         return Json(new
         {
             correlationId,
@@ -360,6 +327,7 @@ public class LogsController : Controller
         {
             _db.LogSessions.Remove(session);
             await _db.SaveChangesAsync();
+            _logger.LogInformation("Deleted log session {SessionId}", id);
         }
         return RedirectToAction("Index", "Home");
     }
@@ -371,34 +339,13 @@ public class LogsController : Controller
     {
         limit = Math.Clamp(limit, 1, 500);
 
-        var conn = new SqliteConnection(_db.Database.GetConnectionString());
+        await using var conn = new SqliteConnection(_db.Database.GetConnectionString());
         await conn.OpenAsync();
         if (useRegex) RegisterRegexp(conn);
 
         var where = "WHERE SessionId = $sid";
         var sqlParams = new List<SqliteParameter> { new("$sid", id) };
-
-        ApplySearchFilter(search, useRegex, ref where, sqlParams);
-        if (!string.IsNullOrWhiteSpace(level))
-        {
-            where += " AND Level = $level";
-            sqlParams.Add(new("$level", level));
-        }
-        if (!string.IsNullOrWhiteSpace(correlationId))
-        {
-            where += " AND CorrelationId = $cid";
-            sqlParams.Add(new("$cid", correlationId));
-        }
-        if (!string.IsNullOrWhiteSpace(from))
-        {
-            where += " AND SUBSTR(Timestamp, 12, 5) >= $from";
-            sqlParams.Add(new("$from", from));
-        }
-        if (!string.IsNullOrWhiteSpace(to))
-        {
-            where += " AND SUBSTR(Timestamp, 12, 5) <= $to";
-            sqlParams.Add(new("$to", to));
-        }
+        ApplyFilters(search, useRegex, level, correlationId, from, to, ref where, sqlParams);
 
         int totalCount;
         using (var cmd = conn.CreateCommand())
@@ -434,9 +381,6 @@ public class LogsController : Controller
             }
         }
 
-        await conn.CloseAsync();
-        conn.Dispose();
-
         return Json(new { totalCount, entries });
     }
 
@@ -448,27 +392,44 @@ public class LogsController : Controller
             query = query.Where(e => e.Level == level);
         if (!string.IsNullOrWhiteSpace(search))
             query = query.Where(e => e.Message.Contains(search) || e.Source.Contains(search));
-        var entries = await query.OrderBy(e => e.Timestamp).ToListAsync();
+        query = query.OrderBy(e => e.Timestamp);
+
+        var fileName = $"logs-{id}.{format}";
+        Response.Headers.ContentDisposition = $"attachment; filename=\"{fileName}\"";
 
         if (format == "json")
         {
-            var json = System.Text.Json.JsonSerializer.Serialize(entries.Select(e => new
-            {
-                e.Timestamp,
-                e.Level,
-                e.Source,
-                e.Message,
-                e.StackTrace
-            }), new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            Response.ContentType = "application/json";
+            await Response.StartAsync();
 
-            return File(System.Text.Encoding.UTF8.GetBytes(json), "application/json", $"logs-{id}.json");
+            await Response.WriteAsync("[");
+            bool first = true;
+            await foreach (var e in query.AsAsyncEnumerable())
+            {
+                if (!first) await Response.WriteAsync(",");
+                first = false;
+                var json = JsonSerializer.Serialize(new
+                {
+                    e.Timestamp,
+                    e.Level,
+                    e.Source,
+                    e.Message,
+                    e.StackTrace
+                });
+                await Response.WriteAsync(json);
+            }
+            await Response.WriteAsync("]");
+            return new EmptyResult();
         }
 
-        var csv = "Timestamp,Level,Source,Message\n" +
-            string.Join("\n", entries.Select(e =>
-                $"\"{e.Timestamp:yyyy-MM-dd HH:mm:ss}\",\"{e.Level}\",\"{Escape(e.Source)}\",\"{Escape(e.Message)}\""));
-
-        return File(System.Text.Encoding.UTF8.GetBytes(csv), "text/csv", $"logs-{id}.csv");
+        Response.ContentType = "text/csv";
+        await Response.StartAsync();
+        await Response.WriteAsync("Timestamp,Level,Source,Message\n");
+        await foreach (var e in query.AsAsyncEnumerable())
+        {
+            await Response.WriteAsync($"\"{e.Timestamp:yyyy-MM-dd HH:mm:ss}\",\"{e.Level}\",\"{Escape(e.Source)}\",\"{Escape(e.Message)}\"\n");
+        }
+        return new EmptyResult();
     }
 
     private static void RegisterRegexp(SqliteConnection conn)
@@ -480,19 +441,42 @@ public class LogsController : Controller
         });
     }
 
-    private static void ApplySearchFilter(string? search, bool useRegex, ref string where, List<SqliteParameter> sqlParams)
+    private static void ApplyFilters(string? search, bool useRegex, string? level,
+        string? correlationId, string? from, string? to,
+        ref string where, List<SqliteParameter> sqlParams)
     {
-        if (string.IsNullOrWhiteSpace(search)) return;
-
-        if (useRegex)
+        if (!string.IsNullOrWhiteSpace(search))
         {
-            where += " AND (regexp($search, Message) OR regexp($search, Source))";
-            sqlParams.Add(new("$search", search));
+            if (useRegex)
+            {
+                where += " AND (regexp($search, Message) OR regexp($search, Source))";
+                sqlParams.Add(new("$search", search));
+            }
+            else
+            {
+                where += " AND (Message LIKE $search OR Source LIKE $search)";
+                sqlParams.Add(new("$search", $"%{search}%"));
+            }
         }
-        else
+        if (!string.IsNullOrWhiteSpace(level))
         {
-            where += " AND (Message LIKE $search OR Source LIKE $search)";
-            sqlParams.Add(new("$search", $"%{search}%"));
+            where += " AND Level = $level";
+            sqlParams.Add(new("$level", level));
+        }
+        if (!string.IsNullOrWhiteSpace(correlationId))
+        {
+            where += " AND CorrelationId = $cid";
+            sqlParams.Add(new("$cid", correlationId));
+        }
+        if (!string.IsNullOrWhiteSpace(from))
+        {
+            where += " AND SUBSTR(Timestamp, 12, 5) >= $from";
+            sqlParams.Add(new("$from", from));
+        }
+        if (!string.IsNullOrWhiteSpace(to))
+        {
+            where += " AND SUBSTR(Timestamp, 12, 5) <= $to";
+            sqlParams.Add(new("$to", to));
         }
     }
 

@@ -4,7 +4,23 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>false</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <AssemblyName>LogLens</AssemblyName>
+    <Product>LogLens</Product>
+    <Description>Personal Serilog Log Viewer</Description>
+    <Version>1.0.0</Version>
+    <Authors>LogLens</Authors>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="LogLens.Tests\**" />
+    <Content Remove="LogLens.Tests\**" />
+    <EmbeddedResource Remove="LogLens.Tests\**" />
+    <None Remove="LogLens.Tests\**" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.15" />

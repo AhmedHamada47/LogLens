@@ -13,13 +13,9 @@ public class LogFilterViewModel
     public bool UseRegex { get; set; }
 
     public LogSession Session { get; set; } = null!;
-    public List<LogEntry> Entries { get; set; } = new();
     public Dictionary<string, int> LevelCounts { get; set; } = new();
     public int TotalCount { get; set; }
     public int FilteredCount { get; set; }
-    public int Page { get; set; } = 1;
-    public int TotalPages { get; set; } = 1;
-    public int PageSize { get; set; } = 200;
     public List<ErrorSummaryItem> ErrorSummary { get; set; } = new();
     public List<TimelineBucket> Timeline { get; set; } = new();
 }
