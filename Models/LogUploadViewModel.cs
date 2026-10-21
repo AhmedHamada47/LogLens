@@ -10,6 +10,7 @@ public class LogUploadViewModel
 
     public IFormFile? LogFile { get; set; }
 
+    // Optional: defaults to the uploaded file name (or a timestamp for pasted logs)
     [MaxLength(200)]
-    public string SessionName { get; set; } = string.Empty;
+    public string? SessionName { get; set; }
 }

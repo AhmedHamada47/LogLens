@@ -12,8 +12,8 @@
 
         <form asp-action="Upload" method="post" enctype="multipart/form-data" id="uploadForm">
             <div class="mb-4">
-                <label asp-for="SessionName" class="form-label">Session Name</label>
-                <input asp-for="SessionName" class="form-control" placeholder="e.g. API crash Sep 10" />
+                <label asp-for="SessionName" class="form-label">Session Name <span class="page-subtitle small">(optional)</span></label>
+                <input asp-for="SessionName" class="form-control" placeholder="Defaults to the file name" />
             </div>
 
             <div class="mb-3">
@@ -76,22 +76,29 @@
             fileNameDiv.style.display = 'block';
         }
 
-        document.getElementById('uploadForm').addEventListener('submit', function(e) {
-            var btn = document.getElementById('submitBtn');
-            var btnText = document.getElementById('btnText');
-            var btnSpinner = document.getElementById('btnSpinner');
+        var form = document.getElementById('uploadForm');
+        var btn = document.getElementById('submitBtn');
+        var btnText = document.getElementById('btnText');
+        var btnSpinner = document.getElementById('btnSpinner');
 
-            setTimeout(function() {
-                btnText.style.display = 'none';
-                btnSpinner.style.display = 'inline';
-                btn.disabled = true;
-            }, 10);
+        function setBusy(busy) {
+            btnText.style.display = busy ? 'none' : '';
+            btnSpinner.style.display = busy ? 'inline' : 'none';
+            btn.disabled = busy;
+        }
 
-            setTimeout(function() {
-                btnText.style.display = '';
-                btnSpinner.style.display = 'none';
-                btn.disabled = false;
-            }, 300000);
+        form.addEventListener('submit', function(e) {
+            // Only show "Processing..." when the form is really being sent
+            if (window.jQuery && jQuery(form).valid && !jQuery(form).valid()) return;
+            if (!fileInput.files.length && !form.querySelector('textarea').value.trim()) {
+                e.preventDefault();
+                alert('Please choose a log file or paste log content.');
+                return;
+            }
+            setTimeout(function() { setBusy(true); }, 10);
         });
+
+        // Reset the button when the page is shown again (e.g. browser Back)
+        window.addEventListener('pageshow', function() { setBusy(false); });
     </script>
 }

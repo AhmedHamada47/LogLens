@@ -74,9 +74,10 @@ public class LogsController : Controller
             return View(model);
         }
 
-        var sessionName = string.IsNullOrWhiteSpace(model.SessionName)
-            ? $"Session {DateTime.Now:yyyy-MM-dd HH:mm}"
-            : model.SessionName.Length > 200 ? model.SessionName[..200] : model.SessionName;
+        var sessionName = !string.IsNullOrWhiteSpace(model.SessionName) ? model.SessionName.Trim()
+            : model.LogFile != null ? Path.GetFileNameWithoutExtension(model.LogFile.FileName)
+            : $"Session {DateTime.Now:yyyy-MM-dd HH:mm}";
+        if (sessionName.Length > 200) sessionName = sessionName[..200];
 
         var session = new LogSession
         {
