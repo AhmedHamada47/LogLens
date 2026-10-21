@@ -1,6 +1,7 @@
 name: Release
 
-# Push a tag like v1.0.0 to build the Windows installer and publish it as a GitHub Release.
+# Push a tag like v1.0.0 to build the Windows installer and attach it to a draft GitHub Release.
+# Test the draft, then click "Publish release" to make the download link live.
 # Permanent download link for the newest version:
 #   https://github.com/<owner>/<repo>/releases/latest/download/LogLens-Setup.exe
 on:
@@ -45,4 +46,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: installer/output/LogLens-Setup.exe
+          draft: true
           generate_release_notes: true
+          # Created as a draft so it can be tested first; publish it from the Releases page

@@ -59,7 +59,7 @@ Run `publish.bat` (needs [Inno Setup 6](https://jrsoftware.org/isdl.php): `winge
 
 ### Release a new version
 
-Push a tag like `v1.0.1`. The GitHub Actions workflow builds the installer and attaches it to a GitHub Release, so the download link above always points to the newest version.
+Push a tag like `v1.0.1`. The GitHub Actions workflow builds the installer and attaches it to a **draft** GitHub Release. Test the installer from the draft, then click **Publish release** — the download link above always points to the newest published version.
 
 ## Security
 
