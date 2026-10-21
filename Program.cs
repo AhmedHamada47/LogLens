@@ -23,7 +23,12 @@ var appDataDir = Path.Combine(
 Directory.CreateDirectory(appDataDir);
 var dbPath = Path.Combine(appDataDir, "loglens.db");
 
-var builder = WebApplication.CreateBuilder(args);
+// Content root = install folder, so wwwroot is found no matter which folder the app is launched from
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = AppContext.BaseDirectory
+});
 
 builder.Services.AddControllersWithViews(options =>
 {
