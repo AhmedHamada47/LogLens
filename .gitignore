@@ -22,3 +22,6 @@ LogLens.Tests/obj/
 
 # Packages
 packages/
+
+# Installer output
+installer/output/

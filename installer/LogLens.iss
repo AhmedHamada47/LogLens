@@ -1,11 +1,17 @@
 ; LogLens Inno Setup Script
 ; Download Inno Setup from https://jrsoftware.org/isdl.php
+; Build: ISCC.exe installer\LogLens.iss  (optionally /DAppVersion=1.2.3)
+
+#ifndef AppVersion
+  #define AppVersion "1.0.0"
+#endif
 
 [Setup]
+AppId={{CA161C4B-32EB-403E-8A23-11853DA2BB3F}
 AppName=LogLens
-AppVersion=1.0.0
+AppVersion={#AppVersion}
 AppPublisher=LogLens
-AppPublisherURL=https://github.com/LogLens
+AppPublisherURL=https://github.com/AhmedHamada47/LogLens
 DefaultDirName={autopf}\LogLens
 DefaultGroupName=LogLens
 OutputDir=..\installer\output
@@ -17,8 +23,10 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayName=LogLens
 WizardStyle=modern
-; Uncomment the line below when you have an icon file
-; SetupIconFile=..\LogLens.ico
+SetupIconFile=..\LogLens.ico
+UninstallDisplayIcon={app}\LogLens.exe
+; Ask the user to close a running LogLens before installing/uninstalling
+AppMutex=LogLens_SingleInstance
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a Desktop shortcut"; GroupDescription: "Additional shortcuts:"

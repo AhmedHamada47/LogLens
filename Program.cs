@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using Microsoft.EntityFrameworkCore;
 using LogLens.Data;
+using LogLens.Desktop;
 using LogLens.Services;
 
 const int DefaultPort = 5189;
@@ -137,7 +138,17 @@ app.Lifetime.ApplicationStarted.Register(() =>
     OpenBrowser($"http://127.0.0.1:{DefaultPort}");
 });
 
-app.Run();
+// --- Tray icon (the app has no console window) ---
+TrayIcon.Start(app.Lifetime, $"http://127.0.0.1:{DefaultPort}", OpenBrowser);
+
+try
+{
+    app.Run();
+}
+catch (Exception ex)
+{
+    TrayIcon.ShowError($"LogLens could not start.{Environment.NewLine}{Environment.NewLine}{ex.Message}");
+}
 
 // --- Helper ---
 static void OpenBrowser(string url)

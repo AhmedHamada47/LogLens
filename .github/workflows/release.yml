@@ -1,0 +1,48 @@
+name: Release
+
+# Push a tag like v1.0.0 to build the Windows installer and publish it as a GitHub Release.
+# Permanent download link for the newest version:
+#   https://github.com/<owner>/<repo>/releases/latest/download/LogLens-Setup.exe
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Test
+        run: dotnet test LogLens.Tests/LogLens.Tests.csproj -c Release
+
+      - name: Publish app
+        run: dotnet publish LogLens.csproj -c Release -r win-x64 --self-contained true -o bin\Release\net9.0\win-x64\publish
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $version = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME.TrimStart('v') } else { '0.0.0-dev' }
+          choco install innosetup --no-progress -y
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" installer\LogLens.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LogLens-Setup
+          path: installer/output/LogLens-Setup.exe
+
+      - name: Publish GitHub Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: installer/output/LogLens-Setup.exe
+          generate_release_notes: true
