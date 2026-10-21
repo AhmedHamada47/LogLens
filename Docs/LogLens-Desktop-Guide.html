@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LogLens Desktop Guide</title>
+<style>
+:root {
+  --bg: #f6f7fb; --surface: #ffffff; --surface-2: #f0f2f8; --text: #1b2130; --muted: #5b6478;
+  --border: #dde1ec; --accent: #4f46e5; --accent-2: #0e7490; --ok: #15803d; --warn: #b45309; --bad: #b91c1c;
+  --code-bg: #eef0f7; --shadow: 0 1px 2px rgba(20,24,40,.06), 0 4px 16px rgba(20,24,40,.05);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b0f17; --surface: #121826; --surface-2: #182033; --text: #e6e9f2; --muted: #98a2b8;
+    --border: #253049; --accent: #8b85ff; --accent-2: #38bdf8; --ok: #4ade80; --warn: #fbbf24; --bad: #f87171;
+    --code-bg: #0f1522; --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b0f17; --surface: #121826; --surface-2: #182033; --text: #e6e9f2; --muted: #98a2b8;
+  --border: #253049; --accent: #8b85ff; --accent-2: #38bdf8; --ok: #4ade80; --warn: #fbbf24; --bad: #f87171;
+  --code-bg: #0f1522; --shadow: none;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+code, pre, kbd { font-family: "Cascadia Code", Consolas, "JetBrains Mono", monospace; font-size: .88em; }
+code { background: var(--code-bg); border: 1px solid var(--border); padding: .08em .35em; border-radius: 5px; overflow-wrap: anywhere; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; overflow-x: auto; line-height: 1.5; }
+pre code { background: none; border: 0; padding: 0; }
+a { color: var(--accent); }
+.layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); max-width: 1240px; margin: 0 auto; }
+nav.toc {
+  position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 28px 18px 28px 22px;
+  border-right: 1px solid var(--border);
+}
+nav.toc .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.1rem; margin-bottom: 18px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; counter-reset: s; }
+nav.toc li { counter-increment: s; }
+nav.toc a { display: block; padding: 5px 8px; border-radius: 6px; color: var(--muted); text-decoration: none; font-size: .92rem; }
+nav.toc a::before { content: counter(s) ". "; opacity: .6; }
+nav.toc a:hover { background: var(--surface-2); color: var(--text); }
+main { padding: 36px 40px 80px; min-width: 0; }
+header.hero { margin-bottom: 30px; }
+header.hero h1 { font-size: 2.2rem; line-height: 1.2; margin: 0 0 10px; }
+header.hero p { color: var(--muted); font-size: 1.08rem; margin: 0; max-width: 760px; }
+.pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.pill { background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; font-size: .85rem; color: var(--muted); }
+section { margin-top: 46px; scroll-margin-top: 16px; }
+h2 { font-size: 1.55rem; margin: 0 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.15rem; margin: 26px 0 8px; }
+p, li { max-width: 820px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; box-shadow: var(--shadow); margin: 14px 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+.grid .card { margin: 0; }
+.card h4 { margin: 0 0 6px; font-size: 1rem; }
+.card p { margin: 0; color: var(--muted); font-size: .93rem; }
+.note { border-left: 4px solid var(--accent-2); background: var(--surface); padding: 12px 16px; border-radius: 0 10px 10px 0; margin: 16px 0; }
+.note.warn { border-left-color: var(--warn); }
+.note.ok { border-left-color: var(--ok); }
+table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: .93rem; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+th { background: var(--surface-2); font-weight: 600; white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td:first-child { white-space: nowrap; }
+.tag { display: inline-block; font-size: .72rem; font-weight: 700; padding: 1px 7px; border-radius: 5px; margin-left: 6px; vertical-align: middle; }
+.tag.new { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+.tag.chg { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.challenge { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin: 16px 0; overflow: hidden; box-shadow: var(--shadow); }
+.challenge h3 { margin: 0; padding: 14px 18px; background: var(--surface-2); font-size: 1.05rem; }
+.challenge .body { padding: 6px 18px 14px; display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 4px 14px; }
+.challenge .body b { color: var(--muted); font-weight: 600; padding-top: 10px; }
+.challenge .body div { padding-top: 10px; }
+.steps { counter-reset: st; list-style: none; padding: 0; }
+.steps li { counter-increment: st; position: relative; padding: 2px 0 12px 44px; }
+.steps li::before {
+  content: counter(st); position: absolute; left: 0; top: 0; width: 30px; height: 30px; border-radius: 50%;
+  background: var(--accent); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: .9rem;
+}
+figure { margin: 18px 0; }
+figure svg { width: 100%; height: auto; display: block; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+figcaption { color: var(--muted); font-size: .88rem; margin-top: 6px; }
+svg .box { fill: var(--surface-2); stroke: var(--border); }
+svg .box-accent { fill: color-mix(in srgb, var(--accent) 14%, var(--surface)); stroke: var(--accent); }
+svg .box-teal { fill: color-mix(in srgb, var(--accent-2) 14%, var(--surface)); stroke: var(--accent-2); }
+svg text { fill: var(--text); font: 600 14px system-ui, "Segoe UI", sans-serif; }
+svg text.sub { fill: var(--muted); font-weight: 400; font-size: 12px; }
+svg .arrow { stroke: var(--muted); stroke-width: 1.6; fill: none; marker-end: url(#ah); }
+svg .ah { fill: var(--muted); }
+.stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 14px 0; }
+.stat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.stat .v { font-size: 1.6rem; font-weight: 700; }
+.stat .l { color: var(--muted); font-size: .85rem; }
+.theme-btn {
+  position: fixed; top: 14px; right: 16px; z-index: 5; background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; cursor: pointer; font: inherit; font-size: .85rem;
+}
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  nav.toc { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 20px 16px; }
+  main { padding: 24px 16px 60px; }
+  header.hero h1 { font-size: 1.7rem; }
+  .challenge .body { grid-template-columns: 1fr; }
+  .challenge .body b { padding-top: 8px; }
+  .challenge .body div { padding-top: 0; }
+  .theme-btn { top: 10px; right: 10px; }
+}
+</style>
+</head>
+<body>
+<button class="theme-btn" id="themeBtn" type="button">Toggle theme</button>
+<div class="layout">
+<nav class="toc" aria-label="Contents">
+  <div class="brand">
+    <svg width="28" height="28" viewBox="0 0 256 256" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4f46e5"/><stop offset="1" stop-color="#0e7490"/></linearGradient></defs><rect x="8" y="8" width="240" height="240" rx="56" fill="url(#lg)"/><circle cx="48" cy="66" r="8" fill="#4ade80"/><rect x="66" y="61" width="150" height="10" fill="#fff" opacity=".9"/><circle cx="48" cy="100" r="8" fill="#facc15"/><rect x="66" y="95" width="110" height="10" fill="#fff" opacity=".9"/><circle cx="48" cy="134" r="8" fill="#f87171"/><rect x="66" y="129" width="130" height="10" fill="#fff" opacity=".9"/><circle cx="160" cy="160" r="44" fill="#fff" fill-opacity=".35" stroke="#fff" stroke-width="14"/><line x1="192" y1="192" x2="222" y2="222" stroke="#fff" stroke-width="22" stroke-linecap="round"/></svg>
+    LogLens Guide
+  </div>
+  <ol>
+    <li><a href="#idea">The main idea</a></li>
+    <li><a href="#startup">What happens on double-click</a></li>
+    <li><a href="#desktop">Web app → desktop app</a></li>
+    <li><a href="#icon">The icon</a></li>
+    <li><a href="#installer">The installer</a></li>
+    <li><a href="#release">Download link &amp; releases</a></li>
+    <li><a href="#files">Every file explained</a></li>
+    <li><a href="#data">The data model</a></li>
+    <li><a href="#parsing">Fast parsing</a></li>
+    <li><a href="#viewing">Viewing 200k+ rows</a></li>
+    <li><a href="#challenges">Challenges &amp; fixes</a></li>
+    <li><a href="#howto">How-to recipes</a></li>
+    <li><a href="#limits">Limits &amp; next steps</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="hero">
+  <h1>LogLens: how an ASP.NET Core MVC web app became a Windows desktop app</h1>
+  <p>A complete walkthrough of the LogLens project: every file, how the desktop icon, tray and installer work, how a 47&nbsp;MB log is parsed in seconds, and every problem we hit on the way and how each one was solved.</p>
+  <div class="pill-row">
+    <span class="pill">.NET 9 · ASP.NET Core MVC</span>
+    <span class="pill">SQLite</span>
+    <span class="pill">WinForms tray icon</span>
+    <span class="pill">Inno Setup installer</span>
+    <span class="pill">GitHub Actions releases</span>
+  </div>
+</header>
+
+<!-- 1 -->
+<section id="idea">
+<h2>The main idea</h2>
+<p>LogLens is a normal <strong>ASP.NET Core MVC website</strong>. It never needed to be rewritten as WPF or WinForms. The trick is to ship the <em>web server and the website together inside one Windows program</em>:</p>
+<div class="grid">
+  <div class="card"><h4>1 · A local web server</h4><p><code>LogLens.exe</code> starts Kestrel (ASP.NET Core's built-in web server) on <code>http://127.0.0.1:5189</code>. Only this computer can reach it.</p></div>
+  <div class="card"><h4>2 · The browser is the window</h4><p>When the server is ready, LogLens opens that address in the default browser. The browser draws the UI; the server does the work.</p></div>
+  <div class="card"><h4>3 · A tray icon instead of a console</h4><p>The exe is a Windows app (no black console). A tray icon lets you reopen the page or Exit.</p></div>
+  <div class="card"><h4>4 · Everything bundled</h4><p>The .NET runtime is packed in (self-contained), so users install nothing else. An installer adds the desktop icon.</p></div>
+</div>
+
+<figure>
+<svg viewBox="0 0 880 300" role="img" aria-label="Architecture: desktop icon starts LogLens.exe which runs a web server and tray icon; the browser talks to the server; data is stored in SQLite">
+  <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+  <rect class="box" x="20" y="110" width="140" height="70" rx="10"/>
+  <text x="90" y="141" text-anchor="middle">Desktop icon</text>
+  <text class="sub" x="90" y="161" text-anchor="middle">double-click</text>
+
+  <rect class="box-accent" x="220" y="30" width="300" height="240" rx="12"/>
+  <text x="370" y="58" text-anchor="middle">LogLens.exe (one process)</text>
+  <rect class="box" x="245" y="78" width="250" height="70" rx="8"/>
+  <text x="370" y="106" text-anchor="middle">Kestrel web server</text>
+  <text class="sub" x="370" y="126" text-anchor="middle">MVC controllers + views · 127.0.0.1:5189</text>
+  <rect class="box" x="245" y="170" width="250" height="70" rx="8"/>
+  <text x="370" y="198" text-anchor="middle">Tray icon thread</text>
+  <text class="sub" x="370" y="218" text-anchor="middle">Open LogLens · Exit</text>
+
+  <rect class="box-teal" x="600" y="40" width="250" height="80" rx="10"/>
+  <text x="725" y="74" text-anchor="middle">Default web browser</text>
+  <text class="sub" x="725" y="96" text-anchor="middle">shows the UI (HTML/CSS/JS)</text>
+
+  <rect class="box-teal" x="600" y="180" width="250" height="80" rx="10"/>
+  <text x="725" y="214" text-anchor="middle">SQLite database</text>
+  <text class="sub" x="725" y="236" text-anchor="middle">%LOCALAPPDATA%\LogLens\loglens.db</text>
+
+  <path class="arrow" d="M160,145 L218,145"/>
+  <path class="arrow" d="M495,105 L598,85"/>
+  <path class="arrow" d="M598,100 L497,120"/>
+  <path class="arrow" d="M495,135 L598,212"/>
+</svg>
+<figcaption>One process holds the web server and the tray icon. The browser is just the screen; all data stays on this PC.</figcaption>
+</figure>
+
+<div class="note ok"><strong>Why this approach?</strong> All the existing MVC code (controllers, Razor views, CSS, JS) keeps working unchanged. We only added a thin "desktop shell" around it: windowed exe + tray + icon + installer.</div>
+</section>
+
+<!-- 2 -->
+<section id="startup">
+<h2>What happens when you double-click the icon</h2>
+<p>All of this lives in <code>Program.cs</code> (plus <code>Desktop/TrayIcon.cs</code>), in this order:</p>
+<ol class="steps">
+  <li><strong>Single-instance check.</strong> A named Windows mutex <code>LogLens_SingleInstance</code> is created. If it already exists, LogLens is already running, so this second copy just opens the browser at the running server and exits. No duplicate servers, no port clash.</li>
+  <li><strong>Find the data folder.</strong> <code>%LOCALAPPDATA%\LogLens</code> is created if missing. The database file <code>loglens.db</code> lives there, so it survives updates and needs no admin rights.</li>
+  <li><strong>Set the content root to the install folder.</strong> <code>ContentRootPath = AppContext.BaseDirectory</code> makes ASP.NET look for <code>wwwroot</code> (CSS/JS) next to the exe, no matter how the app was launched. (Getting this wrong caused the "unstyled pages" bug; see <a href="#challenges">challenges</a>.)</li>
+  <li><strong>Start Kestrel on loopback only.</strong> <code>options.Listen(IPAddress.Loopback, 5189)</code>. Other machines on the network cannot connect. Upload limits are raised to 500&nbsp;MB.</li>
+  <li><strong>Prepare the database.</strong> <code>EnsureCreated()</code> builds the tables the first time. A small <code>SchemaVersion</code> table records upgrades (extra indexes, the <code>CorrelationId</code> column) so old databases are upgraded safely.</li>
+  <li><strong>Add security headers.</strong> CSP, <code>X-Frame-Options: DENY</code>, <code>X-Content-Type-Options: nosniff</code>, plus anti-forgery tokens on every POST.</li>
+  <li><strong>Open the browser</strong> when the server reports "started" (<code>ApplicationStarted</code>).</li>
+  <li><strong>Show the tray icon</strong> on its own thread, with a "LogLens is running" balloon.</li>
+  <li><strong>Run.</strong> If startup fails (for example port 5189 is taken by another program), a Windows message box explains why, instead of failing silently.</li>
+</ol>
+</section>
+
+<!-- 3 -->
+<section id="desktop">
+<h2>Turning the web app into a desktop app</h2>
+<p>These are the exact project settings in <code>LogLens.csproj</code> that make the difference:</p>
+<pre><code>&lt;TargetFramework&gt;net9.0-windows&lt;/TargetFramework&gt;   &lt;!-- allows Windows-only APIs --&gt;
+&lt;OutputType&gt;WinExe&lt;/OutputType&gt;                      &lt;!-- no console window --&gt;
+&lt;UseWindowsForms&gt;true&lt;/UseWindowsForms&gt;              &lt;!-- for the tray icon + message box --&gt;
+&lt;ApplicationIcon&gt;LogLens.ico&lt;/ApplicationIcon&gt;      &lt;!-- icon baked into LogLens.exe --&gt;
+&lt;RuntimeIdentifier&gt;win-x64&lt;/RuntimeIdentifier&gt;
+&lt;SelfContained&gt;true&lt;/SelfContained&gt;                  &lt;!-- ships the .NET runtime --&gt;
+
+&lt;ItemGroup&gt;
+  &lt;Using Remove="System.Drawing" /&gt;                  &lt;!-- keep WinForms names out of the --&gt;
+  &lt;Using Remove="System.Windows.Forms" /&gt;            &lt;!-- MVC code (avoids name clashes) --&gt;
+&lt;/ItemGroup&gt;</code></pre>
+
+<div class="table-wrap"><table>
+<tr><th>Setting</th><th>Without it</th><th>With it</th></tr>
+<tr><td><code>WinExe</code></td><td>A black console window stays open the whole time; closing it kills the app.</td><td>No console. The app lives in the tray.</td></tr>
+<tr><td><code>UseWindowsForms</code></td><td>No way to show a tray icon or an error dialog from a web app.</td><td><code>NotifyIcon</code> and <code>MessageBox</code> become available.</td></tr>
+<tr><td><code>SelfContained</code></td><td>Users must install the .NET 9 runtime first.</td><td>Works on a clean Windows 10/11 PC.</td></tr>
+<tr><td><code>ApplicationIcon</code></td><td>Generic exe icon everywhere.</td><td>LogLens icon on the exe, shortcuts, taskbar and tray.</td></tr>
+</table></div>
+
+<h3>The tray icon (<code>Desktop/TrayIcon.cs</code>)</h3>
+<p>Windows tray icons need a <em>message loop</em> on an STA thread. The web server already owns the main thread, so the tray runs on its own background thread:</p>
+<pre><code>var thread = new Thread(() =&gt; Run(lifetime, url, openBrowser)) { IsBackground = true };
+thread.SetApartmentState(ApartmentState.STA);   // required by Windows UI components
+thread.Start();
+...
+menu.Items.Add("Open LogLens", null, (_, _) =&gt; openBrowser(url));
+menu.Items.Add("Exit", null, (_, _) =&gt; { icon.Visible = false; lifetime.StopApplication(); Application.ExitThread(); });
+icon.DoubleClick += (_, _) =&gt; openBrowser(url);
+Application.Run();                              // the tray's message loop</code></pre>
+<p><strong>Exit</strong> asks ASP.NET to shut down cleanly (<code>StopApplication</code>), which ends <code>app.Run()</code> and the process. The icon image is read from the exe itself with <code>Icon.ExtractAssociatedIcon</code>, so there is only one icon file to maintain.</p>
+</section>
+
+<!-- 4 -->
+<section id="icon">
+<h2>The icon: how it was made and where it is used</h2>
+<p><code>LogLens.ico</code> was drawn by a small PowerShell script using <code>System.Drawing</code>: a rounded blue-to-teal square, three coloured "log level" dots with lines (green / yellow / red), and a magnifying glass. It was rendered at <strong>16, 24, 32, 48, 64, 128 and 256 px</strong> and packed into one <code>.ico</code> file (each size stored as a PNG), so Windows always picks a sharp size for the desktop, taskbar, tray or Explorer.</p>
+<div class="table-wrap"><table>
+<tr><th>Where you see it</th><th>How it gets there</th></tr>
+<tr><td>LogLens.exe in Explorer</td><td><code>&lt;ApplicationIcon&gt;LogLens.ico&lt;/ApplicationIcon&gt;</code> in the .csproj embeds it in the exe.</td></tr>
+<tr><td>Desktop &amp; Start Menu shortcuts</td><td>Inno Setup shortcuts point at <code>LogLens.exe</code>, so they show its embedded icon.</td></tr>
+<tr><td>System tray</td><td><code>Icon.ExtractAssociatedIcon(Environment.ProcessPath)</code> reads it back from the exe.</td></tr>
+<tr><td>The installer (LogLens-Setup.exe)</td><td><code>SetupIconFile=..\LogLens.ico</code> in <code>installer/LogLens.iss</code>.</td></tr>
+<tr><td>"Apps &amp; features" (uninstall list)</td><td><code>UninstallDisplayIcon={app}\LogLens.exe</code>.</td></tr>
+</table></div>
+<div class="note"><strong>To change the icon:</strong> replace <code>LogLens.ico</code> in the project root with any <code>.ico</code> that contains at least 16, 32, 48 and 256&nbsp;px sizes (free tools: GIMP, or an online PNG→ICO converter), then rebuild. Nothing else needs to change. Windows caches icons, so if the old one still shows on the desktop, delete and recreate the shortcut.</div>
+</section>
+
+<!-- 5 -->
+<section id="installer">
+<h2>The installer (<code>installer/LogLens.iss</code>)</h2>
+<p><a href="https://jrsoftware.org/isinfo.php">Inno Setup</a> (free) turns the published folder into a single <code>LogLens-Setup.exe</code> (~47&nbsp;MB, heavily compressed from ~160&nbsp;MB).</p>
+<div class="table-wrap"><table>
+<tr><th>Line</th><th>What it does</th></tr>
+<tr><td><code>AppId={{CA161C4B-…}</code></td><td>A permanent ID. Installing a newer version upgrades in place instead of creating a second copy. Never change it.</td></tr>
+<tr><td><code>AppVersion={#AppVersion}</code></td><td>Version comes from the build (<code>/DAppVersion=1.0.0</code>); defaults to 1.0.0.</td></tr>
+<tr><td><code>PrivilegesRequired=lowest</code></td><td>No admin prompt. Installs per user into <code>%LOCALAPPDATA%\Programs\LogLens</code>.</td></tr>
+<tr><td><code>AppMutex=LogLens_SingleInstance</code></td><td>Same mutex name as <code>Program.cs</code>: the installer/uninstaller asks you to close a running LogLens first so files aren't locked.</td></tr>
+<tr><td><code>[Tasks] desktopicon</code></td><td>The "Create a Desktop shortcut" checkbox.</td></tr>
+<tr><td><code>[Files]</code></td><td>Copies everything from <code>bin\Release\net9.0\win-x64\publish\</code>.</td></tr>
+<tr><td><code>[Icons]</code></td><td>Start Menu shortcut, uninstall shortcut, optional desktop shortcut, all with working folder <code>{app}</code>.</td></tr>
+<tr><td><code>[Run]</code></td><td>"Launch LogLens" checkbox at the end of setup.</td></tr>
+</table></div>
+<div class="note warn"><strong>"Windows protected your PC".</strong> The installer is not code-signed, so SmartScreen warns on first run. Users click <em>More info → Run anyway</em>. Removing the warning needs a paid code-signing certificate (see <a href="#limits">next steps</a>).</div>
+</section>
+
+<!-- 6 -->
+<section id="release">
+<h2>The download link and how releases work</h2>
+<p>The permanent link that always downloads the newest published version:</p>
+<pre><code>https://github.com/AhmedHamada47/LogLens/releases/latest/download/LogLens-Setup.exe</code></pre>
+<p>It works because GitHub's <code>/releases/latest/download/&lt;file&gt;</code> always redirects to that file on the newest <em>published</em> (non-draft) release. The repo had to be public for anyone to download it.</p>
+<h3>The automated pipeline (<code>.github/workflows/release.yml</code>)</h3>
+<ol class="steps">
+  <li>You push a tag like <code>v1.0.1</code>.</li>
+  <li>GitHub starts a fresh Windows machine, installs .NET 9, and runs the unit tests.</li>
+  <li><code>dotnet publish</code> builds the self-contained app.</li>
+  <li>Inno Setup is installed (<code>choco install innosetup</code>) and compiles the installer with the version taken from the tag.</li>
+  <li>The installer is attached to a <strong>draft</strong> release. Drafts are invisible to the public, so you can download and test it first.</li>
+  <li>When you're happy, click <strong>Publish release</strong> on GitHub, and the public link starts serving the new version.</li>
+</ol>
+</section>
+
+<!-- 7 -->
+<section id="files">
+<h2>Every file explained</h2>
+<p><span class="tag new">NEW</span> = added for the desktop app. <span class="tag chg">CHANGED</span> = modified during this work. Third-party files in <code>wwwroot/lib</code> (Bootstrap, jQuery, jQuery Validation) are unchanged copies of those libraries.</p>
+
+<h3>Startup &amp; desktop shell</h3>
+<div class="table-wrap"><table>
+<tr><th>File</th><th>Purpose</th><th>Key details</th></tr>
+<tr><td><code>Program.cs</code> <span class="tag chg">CHANGED</span></td><td>App entry point: everything in "<a href="#startup">double-click</a>".</td><td>Mutex single instance · DB path in LocalAppData · content root = install folder · Kestrel on 127.0.0.1:5189 · 500&nbsp;MB limits · schema upgrades · security headers · auto-open browser · tray · startup error box.</td></tr>
+<tr><td><code>Desktop/TrayIcon.cs</code> <span class="tag new">NEW</span></td><td>Tray icon with "Open LogLens" / "Exit", plus <code>ShowError</code> message box.</td><td>Runs on its own STA thread with a WinForms message loop.</td></tr>
+<tr><td><code>LogLens.csproj</code> <span class="tag chg">CHANGED</span></td><td>Build settings.</td><td><code>net9.0-windows</code>, <code>WinExe</code>, WinForms, icon, self-contained win-x64; EF Core SQLite package.</td></tr>
+<tr><td><code>LogLens.ico</code> <span class="tag new">NEW</span></td><td>The app icon.</td><td>7 sizes, 16–256&nbsp;px.</td></tr>
+<tr><td><code>appsettings.json</code> / <code>appsettings.Development.json</code></td><td>Logging levels.</td><td>No secrets or connection strings: the DB path is computed in code.</td></tr>
+<tr><td><code>Properties/launchSettings.json</code></td><td>Settings for <code>dotnet run</code> / Visual Studio.</td><td>Development environment on 127.0.0.1:5189.</td></tr>
+</table></div>
+
+<h3>Controllers (the "C" in MVC)</h3>
+<div class="table-wrap"><table>
+<tr><th>File</th><th>Action</th><th>What it does</th></tr>
+<tr><td rowspan="2"><code>Controllers/HomeController.cs</code></td><td><code>Index</code></td><td>Dashboard: lists sessions with total / error / warning counts (computed in SQL).</td></tr>
+<tr><td><code>Error</code></td><td>Friendly error page in production.</td></tr>
+<tr><td rowspan="6"><code>Controllers/LogsController.cs</code> <span class="tag chg">CHANGED</span></td><td><code>Upload</code> GET/POST</td><td>Accepts a file (.log/.txt/.json, ≤500&nbsp;MB) or pasted text, creates a session, then streams entries into SQLite (<a href="#parsing">fast parsing</a>). Session name now defaults to the file name.</td></tr>
+<tr><td><code>View</code></td><td>Session page. Runs fast aggregate SQL: count per level, top 10 errors, per-minute timeline. The rows themselves are loaded later by JavaScript.</td></tr>
+<tr><td><code>EntriesApi</code></td><td>JSON endpoint: returns one page of rows (<code>offset</code>, <code>limit</code> ≤ 500) with filters, search and regex. Feeds the virtual scroller.</td></tr>
+<tr><td><code>Trace</code></td><td>Returns every entry with the same CorrelationId (or nearby entries) for the Trace panel.</td></tr>
+<tr><td><code>Export</code></td><td>Streams CSV or JSON straight to the response, row by row, so huge exports don't fill memory.</td></tr>
+<tr><td><code>Delete</code></td><td>Deletes a session; its entries go with it (cascade delete).</td></tr>
+</table></div>
+
+<h3>Services, data &amp; models</h3>
+<div class="table-wrap"><table>
+<tr><th>File</th><th>Purpose</th><th>Key details</th></tr>
+<tr><td><code>Services/LogParserService.cs</code></td><td>Turns raw log text into <code>LogEntry</code> objects.</td><td>4 compiled regex formats, auto-detection, multi-line stack traces, CorrelationId extraction, level normalisation (INF→INFO …).</td></tr>
+<tr><td><code>Data/AppDbContext.cs</code></td><td>EF Core database definition.</td><td>Tables <code>LogSessions</code>, <code>LogEntries</code>; indexes; cascade delete.</td></tr>
+<tr><td><code>Models/LogSession.cs</code></td><td>One uploaded file = one session.</td><td>Id, Name (≤200), CreatedAt, SourceFileName.</td></tr>
+<tr><td><code>Models/LogEntry.cs</code></td><td>One log line (plus its continuation lines).</td><td>Timestamp, Level, Source, Message, StackTrace, CorrelationId, RawLine, SessionId.</td></tr>
+<tr><td><code>Models/LogUploadViewModel.cs</code> <span class="tag chg">CHANGED</span></td><td>Upload form data.</td><td>SessionName is now <em>optional</em> (<code>string?</code>), LogFile, PastedLogs.</td></tr>
+<tr><td><code>Models/LogFilterViewModel.cs</code></td><td>Everything the session page shows.</td><td>Filters, level counts, totals, top errors, timeline buckets.</td></tr>
+<tr><td><code>Models/SessionSummaryViewModel.cs</code></td><td>One dashboard card.</td><td>Name, date, file, totals.</td></tr>
+<tr><td><code>Models/ErrorViewModel.cs</code></td><td>Error page model.</td><td>Request id.</td></tr>
+</table></div>
+
+<h3>Views &amp; front-end</h3>
+<div class="table-wrap"><table>
+<tr><th>File</th><th>Purpose</th><th>Key details</th></tr>
+<tr><td><code>Views/Shared/_Layout.cshtml</code> (+ <code>.css</code>)</td><td>Page frame: top bar, theme toggle, nav, scripts.</td><td>Loads Bootstrap, site.css, jQuery.</td></tr>
+<tr><td><code>Views/Home/Index.cshtml</code></td><td>Dashboard cards with delete buttons.</td><td></td></tr>
+<tr><td><code>Views/Logs/Upload.cshtml</code> <span class="tag chg">CHANGED</span></td><td>Drag-and-drop / paste form.</td><td>"Processing…" now only appears when the form really submits; no more 5-minute timer.</td></tr>
+<tr><td><code>Views/Logs/View.cshtml</code> <span class="tag chg">CHANGED</span></td><td>The log viewer.</td><td>Filters, search, insights chart, stack traces, Trace panel, keyboard shortcuts, <strong>virtual scrolling</strong> (fixed).</td></tr>
+<tr><td><code>Views/Shared/Error.cshtml</code>, <code>_ValidationScriptsPartial</code>, <code>_ViewImports</code>, <code>_ViewStart</code></td><td>Standard MVC plumbing.</td><td></td></tr>
+<tr><td><code>wwwroot/css/site.css</code></td><td>All app styling (~1,400 lines).</td><td>Dark/light themes, level colours, compact density.</td></tr>
+<tr><td><code>wwwroot/favicon.ico</code>, <code>wwwroot/lib/*</code></td><td>Browser tab icon, third-party libraries.</td><td></td></tr>
+</table></div>
+
+<h3>Build, release &amp; docs</h3>
+<div class="table-wrap"><table>
+<tr><th>File</th><th>Purpose</th></tr>
+<tr><td><code>installer/LogLens.iss</code> <span class="tag chg">CHANGED</span></td><td>Inno Setup script (see <a href="#installer">installer</a>).</td></tr>
+<tr><td><code>publish.bat</code> <span class="tag chg">CHANGED</span></td><td>One click: publish the app, then build the installer into <code>installer\output\</code>.</td></tr>
+<tr><td><code>.github/workflows/release.yml</code> <span class="tag new">NEW</span></td><td>Builds and attaches the installer to a draft GitHub release on every <code>v*</code> tag.</td></tr>
+<tr><td><code>LogLens.Tests/</code> <span class="tag chg">CHANGED</span></td><td>11 xUnit tests for the parser (target updated to <code>net9.0-windows</code>).</td></tr>
+<tr><td><code>README.md</code> <span class="tag chg">CHANGED</span></td><td>Download section, build and release instructions.</td></tr>
+<tr><td><code>.gitignore</code> <span class="tag chg">CHANGED</span></td><td>Ignores <code>bin/</code>, <code>obj/</code>, <code>*.db</code>, and now <code>installer/output/</code>.</td></tr>
+<tr><td><code>Docs/LogLens-Desktop-Guide.html</code> <span class="tag new">NEW</span></td><td>This document.</td></tr>
+<tr><td><code>LogLens-Overview.md</code>, <code>.editorconfig</code>, <code>.gitattributes</code>, <code>.claude/launch.json</code></td><td>Project overview notes, code style, line endings, dev-server config.</td></tr>
+</table></div>
+</section>
+
+<!-- 8 -->
+<section id="data">
+<h2>The data model</h2>
+<pre><code>LogSessions                         LogEntries
+-----------                         ----------
+Id             INTEGER PK  ◄──┐     Id             INTEGER PK
+Name           TEXT (≤200)    └──── SessionId      INTEGER FK (cascade delete)
+CreatedAt      TEXT                 Timestamp      TEXT (ISO 8601, sortable)
+SourceFileName TEXT                 Level          TEXT  INFO/WARN/ERROR/FATAL/DEBUG/TRACE
+                                    Source         TEXT (≤200)
+                                    Message        TEXT (≤2000)
+                                    StackTrace     TEXT
+                                    CorrelationId  TEXT
+                                    RawLine        TEXT (≤500)</code></pre>
+<p><strong>Indexes</strong> make filtering instant even with hundreds of thousands of rows: <code>(SessionId, Timestamp)</code>, <code>(SessionId, Level)</code>, <code>(SessionId, CorrelationId)</code>, plus <code>Timestamp</code> and <code>Level</code>.</p>
+<p><strong>Where it lives:</strong> <code>%LOCALAPPDATA%\LogLens\loglens.db</code>. Uninstalling the app leaves your sessions; delete that folder to wipe them.</p>
+</section>
+
+<!-- 9 -->
+<section id="parsing">
+<h2>How a 47 MB log is parsed in seconds</h2>
+<div class="stat-row">
+  <div class="stat"><div class="v">47.5 MB</div><div class="l">test file (fake data)</div></div>
+  <div class="stat"><div class="v">216,444</div><div class="l">entries created</div></div>
+  <div class="stat"><div class="v">~4–7 s</div><div class="l">upload + parse + save</div></div>
+  <div class="stat"><div class="v">0.3 s</div><div class="l">to open the session page</div></div>
+</div>
+<p>Measured on this PC with a generated log in the same Serilog format as real TeoriBox logs. The speed comes from six choices working together:</p>
+
+<h3>1 · Stream, never load the whole file</h3>
+<p><code>ParseStreamEnumerable</code> reads the upload with a 4&nbsp;MB-buffered <code>StreamReader</code>, line by line, and <code>yield return</code>s each finished entry. Only one entry is in memory at a time, so a 500&nbsp;MB file uses about as much RAM as a 1&nbsp;MB file.</p>
+
+<h3>2 · Detect the format once</h3>
+<p>Four compiled regexes cover the supported formats:</p>
+<pre><code>2026-10-21 04:13:37.060 +02:00 [INF] [Source] [CorrelationId:abc] message   ← Serilog with time zone
+2026-10-21 04:13:37 [Information] Source: message                           ← Serilog without zone
+2026-10-21 04:13:37 ERROR Source - message                                   ← "standard"
+[2026-10-21T04:13:37] [WARN] message                                         ← bracketed</code></pre>
+<p>For the first lines every pattern is tried. After 3 lines match the same pattern, that pattern is <em>locked in</em> and used alone. Other patterns are only tried again for the first 50 lines if a line fails. That's one regex per line instead of four.</p>
+
+<h3>3 · Multi-line entries handled in the same pass</h3>
+<p>A line that doesn't start with a timestamp belongs to the previous entry. Lines starting with <code>at </code>, <code>---</code> or <code>Exception</code> are appended to <code>StackTrace</code>; anything else (like a long SQL statement) is appended to the message. Caps keep pathological files safe: ≤20 continuation lines, message ≤2,000 chars, raw line ≤500.</p>
+
+<h3>4 · Raw SQLite inserts in one transaction</h3>
+<p>EF Core is great for normal queries, but its change tracking is slow for 200k inserts. The upload uses plain ADO.NET instead:</p>
+<pre><code>await using var transaction = await conn.BeginTransactionAsync();   // ONE transaction for the whole file
+insert.CommandText = "INSERT INTO LogEntries (...) VALUES ($ts, $lvl, ...)";
+await insert.PrepareAsync();                                         // SQL compiled once
+foreach (var entry in _parser.ParseStreamEnumerable(stream))
+{
+    pTs.Value = entry.Timestamp.ToString("o"); ...                   // only parameter values change
+    await insert.ExecuteNonQueryAsync();
+}
+await transaction.CommitAsync();</code></pre>
+<p>Without the transaction, SQLite would flush to disk after every row: a few hundred rows per second instead of tens of thousands.</p>
+
+<h3>5 · SQLite tuned for bulk writes</h3>
+<pre><code>PRAGMA journal_mode=WAL;      -- readers don't block the writer
+PRAGMA synchronous=NORMAL;    -- fewer disk flushes, still safe in WAL mode
+PRAGMA cache_size=-64000;     -- 64 MB page cache
+PRAGMA temp_store=MEMORY;</code></pre>
+
+<h3>6 · Heavy numbers computed by the database</h3>
+<p>The session page doesn't load rows to count them. Level counts, the top-10 errors and the per-minute timeline are single <code>GROUP BY</code> queries that use the indexes, which is why the page opens in ~0.3&nbsp;s.</p>
+</section>
+
+<!-- 10 -->
+<section id="viewing">
+<h2>Showing 200,000+ rows without freezing the browser</h2>
+<p>Putting 216,444 table rows in a page would freeze any browser. The viewer uses <strong>virtual scrolling</strong>:</p>
+<figure>
+<svg viewBox="0 0 880 250" role="img" aria-label="Virtual scrolling: a tall spacer creates the full scroll height, only rows near the viewport are real elements, and rows are fetched in 200-row blocks">
+  <rect class="box" x="30" y="20" width="230" height="210" rx="8"/>
+  <text x="145" y="48" text-anchor="middle">Top spacer row</text>
+  <text class="sub" x="145" y="68" text-anchor="middle">height = startIndex × rowHeight</text>
+  <rect class="box-accent" x="40" y="88" width="210" height="64" rx="6"/>
+  <text x="145" y="116" text-anchor="middle">~50 real rows</text>
+  <text class="sub" x="145" y="136" text-anchor="middle">visible + 20 above/below</text>
+  <text x="145" y="182" text-anchor="middle">Bottom spacer row</text>
+  <text class="sub" x="145" y="202" text-anchor="middle">fills the rest of the height</text>
+
+  <rect class="box-teal" x="360" y="60" width="200" height="100" rx="8"/>
+  <text x="460" y="96" text-anchor="middle">Row cache</text>
+  <text class="sub" x="460" y="118" text-anchor="middle">up to 5,000 rows</text>
+  <text class="sub" x="460" y="136" text-anchor="middle">in 200-row blocks</text>
+
+  <rect class="box" x="660" y="60" width="190" height="100" rx="8"/>
+  <text x="755" y="96" text-anchor="middle">/Logs/EntriesApi</text>
+  <text class="sub" x="755" y="118" text-anchor="middle">LIMIT 200 OFFSET n</text>
+  <text class="sub" x="755" y="136" text-anchor="middle">JSON</text>
+
+  <path class="arrow" d="M258,120 L358,110"/>
+  <path class="arrow" d="M560,100 L658,100"/>
+  <path class="arrow" d="M658,125 L562,125"/>
+</svg>
+<figcaption>The scrollbar is as tall as all 216k rows, but only ~50 rows exist in the page at any moment.</figcaption>
+</figure>
+<ol class="steps">
+  <li>On scroll, compute which row indexes are on screen: <code>floor(scrollTop / rowHeight)</code>, plus a 20-row buffer each side.</li>
+  <li>Find every 200-row <em>block</em> those indexes touch that isn't cached yet, and fetch all of them from <code>EntriesApi</code>.</li>
+  <li>Draw a top spacer, the ~50 real rows, and a bottom spacer, so the scrollbar stays correct.</li>
+  <li>When the fetched blocks arrive, draw again at the <em>current</em> scroll position.</li>
+  <li>Measure the real row height (e.g. 33.4&nbsp;px with Windows display scaling) and use it for all the math.</li>
+</ol>
+<p>Exports (CSV/JSON) also stream row by row from the database to the download, so exporting everything never builds a giant string in memory.</p>
+</section>
+
+<!-- 11 -->
+<section id="challenges">
+<h2>Every challenge and how it was solved</h2>
+
+<div class="challenge"><h3>1 · A black console window stayed open</h3><div class="body">
+<b>Problem</b><div>ASP.NET apps are console apps by default. Users saw a console, and closing it killed the app.</div>
+<b>Fix</b><div><code>OutputType=WinExe</code> plus a tray icon (<code>Desktop/TrayIcon.cs</code>) with Open/Exit. Startup errors that used to print to the console now show a message box.</div>
+</div></div>
+
+<div class="challenge"><h3>2 · WinForms and ASP.NET name clashes</h3><div class="body">
+<b>Problem</b><div>Enabling WinForms adds global <code>using System.Windows.Forms;</code> and <code>System.Drawing</code>, whose types (<code>Control</code>, <code>View</code>, <code>Timer</code>…) can collide with MVC names.</div>
+<b>Fix</b><div><code>&lt;Using Remove="…" /&gt;</code> in the csproj; only <code>TrayIcon.cs</code> imports WinForms explicitly.</div>
+</div></div>
+
+<div class="challenge"><h3>3 · No icon</h3><div class="body">
+<b>Problem</b><div>The project had no <code>.ico</code>, and the installer's icon line was commented out.</div>
+<b>Fix</b><div>Generated a multi-size <code>LogLens.ico</code> and wired it into the exe, installer, uninstall entry and tray (<a href="#icon">details</a>).</div>
+</div></div>
+
+<div class="challenge"><h3>4 · Pages showed up unstyled; buttons didn't work</h3><div class="body">
+<b>Problem</b><div>ASP.NET looks for <code>wwwroot</code> in the <em>current folder</em>. When LogLens was started from anywhere else (the installer's "Launch" checkbox, another program, a script), every CSS/JS file returned 404. You saw plain blue links and no styling.</div>
+<b>Fix</b><div><code>ContentRootPath = AppContext.BaseDirectory</code>: always use the install folder. Verified by launching from an unrelated folder; all CSS/JS return 200.</div>
+</div></div>
+
+<div class="challenge"><h3>5 · Upload stuck on "Processing…" for 5 minutes</h3><div class="body">
+<b>Problem</b><div>It looked like slow parsing, but measurement showed the server handles 47&nbsp;MB in ~4&nbsp;s. The real cause had two parts: <code>SessionName</code> was a non-nullable <code>string</code>, which ASP.NET treats as <em>required</em>, so the browser silently blocked the upload ("The SessionName field is required"). Meanwhile the button switched to "Processing…" anyway and only reset after a hard-coded <code>300000</code>&nbsp;ms (5-minute) timer.</div>
+<b>Fix</b><div>SessionName is <code>string?</code> (optional) and defaults to the file name. The spinner only shows when validation passes and a file or text is present. The 5-minute timer is gone, and the button resets on browser Back.</div>
+</div></div>
+
+<div class="challenge"><h3>6 · Blank space in the log viewer</h3><div class="body">
+<b>Problem</b><div>When the visible rows spanned two 200-row blocks (fast scrolling, or jumping to the end), the viewer fetched only <em>one</em> block, drew empty rows for the rest, and never redrew them. Also, it assumed rows were 32&nbsp;px when they were really 33.4&nbsp;px, so positions drifted.</div>
+<b>Fix</b><div>Fetch every missing block in the visible range and re-render at the current scroll position when they arrive. Use the measured row height (kept separate from the drawn height, so it can't feed back into itself). Tested at 0%, 25%, 50%, 99%, the very bottom and after rapid random jumps: zero blank rows.</div>
+</div></div>
+
+<div class="challenge"><h3>7 · Private log data in the git history</h3><div class="body">
+<b>Problem</b><div>Before making the repo public, a scan found a deleted ~800&nbsp;MB <code>loglens.db</code> in old commits, holding 721,313 real log entries. Deleted files remain downloadable from public history.</div>
+<b>Fix</b><div>Local backup first (<code>LogLens-backup-before-purge.git</code>), then <code>git filter-branch</code> removed the database from every commit, garbage collection shrank the repo to under 1&nbsp;MB, and <code>main</code> was force-pushed before the repo went public.</div>
+</div></div>
+
+<div class="challenge"><h3>8 · Shipping before testing</h3><div class="body">
+<b>Problem</b><div>The first release build published itself publicly before it could be tested; a cancel arrived seconds too late.</div>
+<b>Fix</b><div>Turned it back into a draft immediately, and changed the workflow to <code>draft: true</code>. Every build now waits for a human to test and click Publish.</div>
+</div></div>
+
+<div class="challenge"><h3>9 · Two copies fighting over one port</h3><div class="body">
+<b>Problem</b><div>Double-clicking twice could start two servers on port 5189.</div>
+<b>Fix</b><div>A named mutex: the second launch just opens the browser. The installer uses the same mutex name to ask you to close LogLens before upgrading.</div>
+</div></div>
+
+<div class="challenge"><h3>10 · "Windows protected your PC"</h3><div class="body">
+<b>Problem</b><div>Unsigned downloads trigger SmartScreen.</div>
+<b>Fix</b><div>Documented the "More info → Run anyway" step in the README. A permanent fix needs code signing (below).</div>
+</div></div>
+
+<div class="challenge"><h3>11 · Users need .NET installed</h3><div class="body">
+<b>Problem</b><div>A normal .NET build needs the runtime on the target PC.</div>
+<b>Fix</b><div>Self-contained win-x64 publish: the runtime ships inside the installer (~160&nbsp;MB on disk, ~47&nbsp;MB download thanks to LZMA2 compression).</div>
+</div></div>
+</section>
+
+<!-- 12 -->
+<section id="howto">
+<h2>How-to recipes</h2>
+<h3>Run it while developing</h3>
+<pre><code>dotnet run</code></pre>
+<h3>Build the installer on your PC</h3>
+<pre><code>winget install JRSoftware.InnoSetup   # once
+publish.bat                            # → installer\output\LogLens-Setup.exe</code></pre>
+<h3>Release a new version</h3>
+<pre><code>git tag -a v1.0.1 -m "LogLens 1.0.1"
+git push origin v1.0.1
+# wait for the Release workflow → test the draft on GitHub → click "Publish release"</code></pre>
+<h3>Change the port</h3>
+<p>Edit <code>DefaultPort</code> at the top of <code>Program.cs</code> (and <code>Properties/launchSettings.json</code> for development).</p>
+<h3>Change the icon</h3>
+<p>Replace <code>LogLens.ico</code> and rebuild (<a href="#icon">details</a>).</p>
+<h3>Reset all data</h3>
+<p>Exit LogLens from the tray, then delete <code>%LOCALAPPDATA%\LogLens</code>.</p>
+<h3>Uninstall</h3>
+<p>Windows Settings → Apps → LogLens → Uninstall (your data folder is kept).</p>
+</section>
+
+<!-- 13 -->
+<section id="limits">
+<h2>Known limits and good next steps</h2>
+<div class="table-wrap"><table>
+<tr><th>Topic</th><th>Today</th><th>Possible improvement</th></tr>
+<tr><td>Code signing</td><td>SmartScreen warning on first run.</td><td>Buy a code-signing certificate (or use Azure Trusted Signing) and sign <code>LogLens.exe</code> + the installer in the workflow.</td></tr>
+<tr><td>Updates</td><td>Users download the new installer manually.</td><td>On startup, check the GitHub "latest release" API and offer a download.</td></tr>
+<tr><td>Deep scrolling</td><td>Pages use <code>LIMIT/OFFSET</code>; fine at 200k rows.</td><td>For multi-million-row logs, switch to keyset paging (<code>WHERE Timestamp &lt; last</code>).</td></tr>
+<tr><td>Installer size</td><td>~47&nbsp;MB (includes EF Core design-time assemblies).</td><td>Drop the <code>EntityFrameworkCore.Tools</code> runtime assets from publish, or enable trimming, to save several MB.</td></tr>
+<tr><td>Window</td><td>Runs in the user's browser.</td><td>Host the UI in a WebView2 window for a fully "native" feel; the MVC code stays the same.</td></tr>
+<tr><td>Platforms</td><td>Windows 10/11 x64.</td><td>The web part is cross-platform; macOS/Linux would need their own tray + packaging.</td></tr>
+</table></div>
+</section>
+</main>
+</div>
+<script>
+(function () {
+  var root = document.documentElement, btn = document.getElementById('themeBtn');
+  try { var t = localStorage.getItem('llguide-theme'); if (t) root.setAttribute('data-theme', t); } catch (e) {}
+  btn.addEventListener('click', function () {
+    var dark = root.getAttribute('data-theme') ? root.getAttribute('data-theme') === 'dark'
+      : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var next = dark ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('llguide-theme', next); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>
