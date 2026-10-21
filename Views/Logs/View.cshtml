@@ -308,7 +308,8 @@
             sortBy: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.SortBy)),
             sortOrder: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.SortOrder)),
             useRegex: @(Model.UseRegex ? "true" : "false"),
-            ROW_HEIGHT: 32,
+            ROW_STYLE_HEIGHT: 32, // height set on each row
+            ROW_HEIGHT: 32,       // measured height used for scroll math
             BUFFER: 20,
             FETCH_SIZE: 200,
             MAX_CACHE: 5000,
@@ -349,7 +350,7 @@
                 for (var i = offset; i < offset + limit && i < VS.totalCount; i++) {
                     if (!VS.cache[i]) { alreadyCached = false; break; }
                 }
-                if (alreadyCached) return Promise.resolve();
+                if (alreadyCached) return Promise.resolve(true);
             }
             var p = fetch(VS.buildUrl(offset, limit))
                 .then(function(r) {
@@ -365,10 +366,12 @@
                     });
                     VS.evictCache();
                     delete VS.pendingFetches[key];
+                    return true;
                 })
                 .catch(function(err) {
                     delete VS.pendingFetches[key];
                     console.error('Failed to fetch log entries:', err);
+                    return false;
                 });
             VS.pendingFetches[key] = p;
             return p;
@@ -393,7 +396,7 @@
             if (entry.correlationId) extras += ' <a href="' + VS_VIEW_URL + '?correlationId=' + encodeURIComponent(entry.correlationId) + '" class="correlation-link" title="Filter by correlation">' + escapeHtml(entry.correlationId.substring(0,8)) + '</a>';
             if (lc === 'error' || lc === 'fatal' || lc === 'warn') extras += ' <button class="trace-btn" onclick="event.stopPropagation(); openTrace(' + entry.id + ')" title="Trace">Trace</button>';
 
-            return '<tr class="log-row ' + rowClass + '" style="height:' + VS.ROW_HEIGHT + 'px;">' +
+            return '<tr class="log-row ' + rowClass + '" style="height:' + VS.ROW_STYLE_HEIGHT + 'px;">' +
                 '<td class="timestamp-cell">' + escapeHtml(ts) + '</td>' +
                 '<td><span class="level-badge ' + badgeClass + '">' + escapeHtml(entry.level) + '</span></td>' +
                 '<td class="source-cell" title="' + escapeHtml(entry.source) + '">' + escapeHtml(entry.source) + '</td>' +
@@ -411,18 +414,23 @@
             VS.lastRenderStart = startIdx;
             VS.lastRenderEnd = endIdx;
 
-            // Check if we need to fetch
-            var needFetch = false;
-            for (var i = startIdx; i < endIdx; i++) {
-                if (!VS.cache[i]) { needFetch = true; break; }
-            }
-            if (needFetch) {
-                var fetchStart = Math.max(0, startIdx - VS.FETCH_SIZE / 2);
-                fetchStart = Math.floor(fetchStart / VS.FETCH_SIZE) * VS.FETCH_SIZE;
-                VS.fetchRange(fetchStart, VS.FETCH_SIZE).then(function() { VS.doRender(startIdx, endIdx); });
-                return;
+            // Fetch every block the visible range touches (it can span several blocks)
+            var fetches = [];
+            for (var b = Math.floor(startIdx / VS.FETCH_SIZE) * VS.FETCH_SIZE; b < endIdx; b += VS.FETCH_SIZE) {
+                for (var i = Math.max(b, startIdx); i < Math.min(b + VS.FETCH_SIZE, endIdx); i++) {
+                    if (!VS.cache[i]) { fetches.push(VS.fetchRange(b, VS.FETCH_SIZE)); break; }
+                }
             }
             VS.doRender(startIdx, endIdx);
+            if (fetches.length) {
+                Promise.all(fetches).then(function(results) {
+                    if (results.indexOf(false) !== -1) return;
+                    // Re-render at the current scroll position once the data has arrived
+                    VS.lastRenderStart = -1;
+                    VS.lastRenderEnd = -1;
+                    VS.render();
+                });
+            }
         };
 
         VS.doRender = function(startIdx, endIdx) {
@@ -442,6 +450,17 @@
             }
             html += '<tr style="height:' + bottomPad + 'px;"><td colspan="4"></td></tr>';
             VS.tbody.innerHTML = html;
+
+            // Rows can end up taller than ROW_HEIGHT (borders, fonts); use the real height so positions don't drift
+            var firstRow = VS.tbody.querySelector('.log-row');
+            var realHeight = firstRow ? firstRow.getBoundingClientRect().height : 0;
+            if (realHeight && Math.abs(realHeight - VS.ROW_HEIGHT) > 0.1) {
+                VS.ROW_HEIGHT = realHeight;
+                VS.lastRenderStart = -1;
+                VS.lastRenderEnd = -1;
+                VS.render();
+                return;
+            }
 
             var visStart = Math.floor(VS.container.scrollTop / VS.ROW_HEIGHT) + 1;
             var visEnd = Math.min(VS.totalCount, Math.ceil((VS.container.scrollTop + VS.container.clientHeight) / VS.ROW_HEIGHT));
@@ -537,7 +556,7 @@
             var isCompact = container.classList.toggle('density-compact');
             this.textContent = isCompact ? 'Comfortable' : 'Compact';
             this.setAttribute('aria-pressed', isCompact);
-            VS.ROW_HEIGHT = isCompact ? 24 : 32;
+            VS.ROW_STYLE_HEIGHT = VS.ROW_HEIGHT = isCompact ? 24 : 32;
             VS.lastRenderStart = -1;
             VS.lastRenderEnd = -1;
             VS.render();
