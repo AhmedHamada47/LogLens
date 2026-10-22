@@ -1,4 +1,14 @@
-# LogLens
+<p align="center">
+  <img src="Assets/Icon/LogLens.svg" width="112" alt="LogLens icon">
+</p>
+
+<h1 align="center">LogLens</h1>
+
+<p align="center">
+  <a href="https://github.com/AhmedHamada47/LogLens/releases/latest"><img src="https://img.shields.io/github/v/release/AhmedHamada47/LogLens?label=latest" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4" alt="Windows 10 | 11">
+  <img src="https://img.shields.io/badge/.NET-9-512BD4" alt=".NET 9">
+</p>
 
 A fast, private desktop log viewer for Windows, built for Serilog-style logs. Drop in a log file and get filtering, search, error summaries and request tracing, all on your own PC.
 
@@ -16,6 +26,10 @@ Built with ASP.NET Core 9 MVC and SQLite, packaged as a desktop app with its own
    - right-click it → **Exit** to close LogLens
 
 Requires Windows 10/11 (64-bit). Nothing else to install; the .NET runtime is included.
+
+### Updating
+
+Download and run the newest `LogLens-Setup.exe`. It upgrades the installed version in place and keeps all your sessions. If LogLens is running, the installer asks you to close it first.
 
 ## Using LogLens
 
@@ -98,12 +112,14 @@ Then run `publish.bat`. It publishes the app and builds `installer/output/LogLen
 
 ### Release a new version
 
+Pick the next version number (for example `v1.0.2`), then:
+
 ```bash
-git tag -a v1.0.1 -m "LogLens 1.0.1"
-git push origin v1.0.1
+git tag -a v1.0.2 -m "LogLens 1.0.2"
+git push origin v1.0.2
 ```
 
-The **Release** GitHub Actions workflow runs the tests, builds the installer and attaches it to a **draft** GitHub Release. Download and test the draft, then click **Publish release**. The download link above always points to the newest published release.
+The version is taken from the tag and stamped into the installer. The **Release** GitHub Actions workflow runs the tests, builds the installer and attaches it to a **draft** GitHub Release. Download and test the draft, then click **Publish release**. The download link above always points to the newest published release.
 
 ### Change the icon
 
@@ -142,6 +158,14 @@ The editable sources are in `Assets/Icon/` (`LogLens.svg` for large sizes, `LogL
 | A page looks unstyled after updating | Press **Ctrl+F5** once to refresh cached files. |
 | "LogLens could not start" | Another program is using port 5189. Close it, or change `DefaultPort` in `Program.cs`. |
 | Nothing happens when opening LogLens | It's already running: look for the tray icon, or open `http://127.0.0.1:5189`. |
+| The old icon still shows after updating | Windows caches icons. Delete the desktop shortcut and start LogLens from the Start Menu, or sign out and back in. |
+
+## Release history
+
+| Version | Changes |
+| --- | --- |
+| **1.0.1** | New modern "Lens" app icon, with simplified artwork for the tray and taskbar, and a matching browser tab icon. |
+| **1.0.0** | First desktop release: Windows installer, desktop icon, tray icon, no console window. Fixed: unstyled pages when launched outside the install folder, upload stuck on "Processing...", and blank rows when scrolling large logs. |
 
 ## License
 
