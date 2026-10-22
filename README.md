@@ -107,7 +107,7 @@ The **Release** GitHub Actions workflow runs the tests, builds the installer and
 
 ### Change the icon
 
-Replace `LogLens.ico` (include 16, 32, 48 and 256 px sizes) and rebuild. The exe, shortcuts, tray icon and installer all use it.
+The editable sources are in `Assets/Icon/` (`LogLens.svg` for large sizes, `LogLens-small.svg` for 16–32 px). Export PNGs at 16, 24, 32, 48, 64, 128 and 256 px, pack them into `LogLens.ico`, and rebuild. The exe, shortcuts, tray icon and installer all use it; `wwwroot/favicon.ico` is the browser tab icon.
 
 ## Project structure
 
@@ -123,6 +123,7 @@ Replace `LogLens.ico` (include 16, 32, 48 and 256 px sizes) and rebuild. The exe
 | `installer/LogLens.iss` | Inno Setup installer script |
 | `.github/workflows/release.yml` | Builds draft releases on `v*` tags |
 | `LogLens.Tests/` | xUnit tests for the parser |
+| `Assets/Icon/` | Editable SVG sources of the app icon |
 | `Docs/LogLens-Desktop-Guide.html` | Full technical guide |
 
 ## Security

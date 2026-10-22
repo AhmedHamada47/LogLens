@@ -117,7 +117,7 @@ svg .ah { fill: var(--muted); }
 <div class="layout">
 <nav class="toc" aria-label="Contents">
   <div class="brand">
-    <svg width="28" height="28" viewBox="0 0 256 256" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4f46e5"/><stop offset="1" stop-color="#0e7490"/></linearGradient></defs><rect x="8" y="8" width="240" height="240" rx="56" fill="url(#lg)"/><circle cx="48" cy="66" r="8" fill="#4ade80"/><rect x="66" y="61" width="150" height="10" fill="#fff" opacity=".9"/><circle cx="48" cy="100" r="8" fill="#facc15"/><rect x="66" y="95" width="110" height="10" fill="#fff" opacity=".9"/><circle cx="48" cy="134" r="8" fill="#f87171"/><rect x="66" y="129" width="130" height="10" fill="#fff" opacity=".9"/><circle cx="160" cy="160" r="44" fill="#fff" fill-opacity=".35" stroke="#fff" stroke-width="14"/><line x1="192" y1="192" x2="222" y2="222" stroke="#fff" stroke-width="22" stroke-linecap="round"/></svg>
+    <svg width="28" height="28" viewBox="0 0 256 256" aria-hidden="true"><defs><linearGradient id="nbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1F2937"/><stop offset="1" stop-color="#0B1120"/></linearGradient><linearGradient id="nring" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22D3EE"/><stop offset=".5" stop-color="#6366F1"/><stop offset="1" stop-color="#C026D3"/></linearGradient></defs><rect x="12" y="12" width="232" height="232" rx="58" fill="url(#nbg)"/><line x1="160" y1="160" x2="206" y2="206" stroke="url(#nring)" stroke-width="28" stroke-linecap="round"/><circle cx="112" cy="112" r="62" fill="#0B1120" stroke="url(#nring)" stroke-width="22"/><rect x="78" y="86" width="56" height="13" rx="6.5" fill="#4ADE80"/><rect x="78" y="106" width="40" height="13" rx="6.5" fill="#FBBF24"/><rect x="78" y="126" width="64" height="13" rx="6.5" fill="#F87171"/></svg>
     LogLens Guide
   </div>
   <ol>
@@ -253,16 +253,24 @@ Application.Run();                              // the tray's message loop</code
 <!-- 4 -->
 <section id="icon">
 <h2>The icon: how it was made and where it is used</h2>
-<p><code>LogLens.ico</code> was drawn by a small PowerShell script using <code>System.Drawing</code>: a rounded blue-to-teal square, three coloured "log level" dots with lines (green / yellow / red), and a magnifying glass. It was rendered at <strong>16, 24, 32, 48, 64, 128 and 256 px</strong> and packed into one <code>.ico</code> file (each size stored as a PNG), so Windows always picks a sharp size for the desktop, taskbar, tray or Explorer.</p>
+<p>The icon is a dark rounded tile with a glowing <strong>cyan → indigo → purple magnifying glass</strong>. Inside the lens are three log-level bars (<span style="color:#22c55e">green</span> = info, <span style="color:#eab308">yellow</span> = warning, <span style="color:#ef4444">red</span> = error): "looking into your logs".</p>
+<p>It was designed as SVG (vector) in two versions, saved in <code>Assets/Icon/</code>:</p>
+<div class="table-wrap"><table>
+<tr><th>Source</th><th>Used for</th><th>Why</th></tr>
+<tr><td><code>LogLens.svg</code></td><td>48, 64, 128, 256 px</td><td>Full detail: soft glow, three bars, subtle top highlight.</td></tr>
+<tr><td><code>LogLens-small.svg</code></td><td>16, 24, 32 px</td><td>Simplified for the tray and taskbar: thicker ring and handle, two bigger bars, and a slightly lighter tile with a visible edge so it doesn't disappear on a dark taskbar.</td></tr>
+</table></div>
+<p>Each size was rendered from SVG to PNG in a browser canvas (downscaled in steps from 1024&nbsp;px for crisp edges), and the 7 PNGs were packed into one <code>LogLens.ico</code>. Using different artwork for small sizes is what Windows apps normally do: fine details that look good at 256&nbsp;px turn to blur at 16&nbsp;px. <code>wwwroot/favicon.ico</code> (the browser tab) uses the same design at 16, 32 and 48&nbsp;px.</p>
 <div class="table-wrap"><table>
 <tr><th>Where you see it</th><th>How it gets there</th></tr>
 <tr><td>LogLens.exe in Explorer</td><td><code>&lt;ApplicationIcon&gt;LogLens.ico&lt;/ApplicationIcon&gt;</code> in the .csproj embeds it in the exe.</td></tr>
 <tr><td>Desktop &amp; Start Menu shortcuts</td><td>Inno Setup shortcuts point at <code>LogLens.exe</code>, so they show its embedded icon.</td></tr>
 <tr><td>System tray</td><td><code>Icon.ExtractAssociatedIcon(Environment.ProcessPath)</code> reads it back from the exe.</td></tr>
+<tr><td>Browser tab</td><td><code>wwwroot/favicon.ico</code>, linked from <code>_Layout.cshtml</code>.</td></tr>
 <tr><td>The installer (LogLens-Setup.exe)</td><td><code>SetupIconFile=..\LogLens.ico</code> in <code>installer/LogLens.iss</code>.</td></tr>
 <tr><td>"Apps &amp; features" (uninstall list)</td><td><code>UninstallDisplayIcon={app}\LogLens.exe</code>.</td></tr>
 </table></div>
-<div class="note"><strong>To change the icon:</strong> replace <code>LogLens.ico</code> in the project root with any <code>.ico</code> that contains at least 16, 32, 48 and 256&nbsp;px sizes (free tools: GIMP, or an online PNG→ICO converter), then rebuild. Nothing else needs to change. Windows caches icons, so if the old one still shows on the desktop, delete and recreate the shortcut.</div>
+<div class="note"><strong>To change the icon:</strong> edit the SVGs in <code>Assets/Icon/</code> (or use any image editor), export PNGs at 16, 24, 32, 48, 64, 128 and 256&nbsp;px, pack them into <code>LogLens.ico</code> in the project root (free tools: GIMP, or an online PNG→ICO converter), then rebuild. Nothing else needs to change. Windows caches icons, so if the old one still shows on the desktop, delete and recreate the shortcut.</div>
 </section>
 
 <!-- 5 -->
@@ -311,7 +319,8 @@ Application.Run();                              // the tray's message loop</code
 <tr><td><code>Program.cs</code> <span class="tag chg">CHANGED</span></td><td>App entry point: everything in "<a href="#startup">double-click</a>".</td><td>Mutex single instance · DB path in LocalAppData · content root = install folder · Kestrel on 127.0.0.1:5189 · 500&nbsp;MB limits · schema upgrades · security headers · auto-open browser · tray · startup error box.</td></tr>
 <tr><td><code>Desktop/TrayIcon.cs</code> <span class="tag new">NEW</span></td><td>Tray icon with "Open LogLens" / "Exit", plus <code>ShowError</code> message box.</td><td>Runs on its own STA thread with a WinForms message loop.</td></tr>
 <tr><td><code>LogLens.csproj</code> <span class="tag chg">CHANGED</span></td><td>Build settings.</td><td><code>net9.0-windows</code>, <code>WinExe</code>, WinForms, icon, self-contained win-x64; EF Core SQLite package.</td></tr>
-<tr><td><code>LogLens.ico</code> <span class="tag new">NEW</span></td><td>The app icon.</td><td>7 sizes, 16–256&nbsp;px.</td></tr>
+<tr><td><code>LogLens.ico</code> <span class="tag new">NEW</span></td><td>The app icon.</td><td>7 sizes, 16–256&nbsp;px (simplified art for 16–32).</td></tr>
+<tr><td><code>Assets/Icon/</code> <span class="tag new">NEW</span></td><td>Editable SVG sources of the icon.</td><td><code>LogLens.svg</code> (large), <code>LogLens-small.svg</code> (tray/taskbar).</td></tr>
 <tr><td><code>appsettings.json</code> / <code>appsettings.Development.json</code></td><td>Logging levels.</td><td>No secrets or connection strings: the DB path is computed in code.</td></tr>
 <tr><td><code>Properties/launchSettings.json</code></td><td>Settings for <code>dotnet run</code> / Visual Studio.</td><td>Development environment on 127.0.0.1:5189.</td></tr>
 </table></div>
