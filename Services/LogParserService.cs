@@ -23,8 +23,9 @@ public class LogParserService
 
     private static readonly Regex[] Patterns = [SerilogTz, SerilogNoTz, Standard, Bracketed];
 
+    // The id must start with a real character, so an empty "[CorrelationId:]" yields no id (not ":")
     private static readonly Regex CorrelationIdPattern = new(
-        @"\[CorrelationId[:\s]*([^\]]+)\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        @"\[CorrelationId:?\s*([^\]\s:][^\]]*)\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public IEnumerable<LogEntry> ParseStreamEnumerable(Stream stream)
     {

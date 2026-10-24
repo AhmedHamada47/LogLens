@@ -105,6 +105,16 @@ using (var scope = app.Services.CreateScope())
         cmd.ExecuteNonQuery();
     }
 
+    if (schemaVersion < 2)
+    {
+        // Older versions stored an empty "[CorrelationId:]" as ":", which linked unrelated entries
+        cmd.CommandText = "UPDATE LogEntries SET CorrelationId = NULL WHERE TRIM(CorrelationId, ' :') = ''";
+        cmd.ExecuteNonQuery();
+
+        cmd.CommandText = "INSERT INTO SchemaVersion (Version) VALUES (2)";
+        cmd.ExecuteNonQuery();
+    }
+
     conn.Close();
 }
 

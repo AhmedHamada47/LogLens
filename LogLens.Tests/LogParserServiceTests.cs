@@ -85,6 +85,22 @@ public class LogParserServiceTests
     }
 
     [Fact]
+    public void EmptyCorrelationIdIsNull()
+    {
+        var entries = Parse("2026-09-07 20:57:44.041 +02:00 [INF] [MyApp] [CorrelationId:] [ThreadId:2] Startup");
+        Assert.Single(entries);
+        Assert.Null(entries[0].CorrelationId);
+    }
+
+    [Fact]
+    public void ExtractsCorrelationIdWithoutSpace()
+    {
+        var entries = Parse("2026-09-07 20:57:44.041 +02:00 [ERR] [MyApp] [CorrelationId:e354bb49850244e3] Failed");
+        Assert.Single(entries);
+        Assert.Equal("e354bb49850244e3", entries[0].CorrelationId);
+    }
+
+    [Fact]
     public void HandlesMultipleEntries()
     {
         var text = "2024-01-15 10:30:45 [INF] App - First\n" +

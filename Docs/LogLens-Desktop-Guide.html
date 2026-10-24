@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -113,7 +113,7 @@ svg .ah { fill: var(--muted); }
 </style>
 </head>
 <body>
-<button class="theme-btn" id="themeBtn" type="button">Toggle theme</button>
+<button class="theme-btn" id="themeBtn" type="button">Light mode</button>
 <div class="layout">
 <nav class="toc" aria-label="Contents">
   <div class="brand">
@@ -584,12 +584,12 @@ git push origin v1.0.1
 <script>
 (function () {
   var root = document.documentElement, btn = document.getElementById('themeBtn');
-  try { var t = localStorage.getItem('llguide-theme'); if (t) root.setAttribute('data-theme', t); } catch (e) {}
+  // Dark by default; the button switches and remembers the choice
+  function apply(t) { root.setAttribute('data-theme', t); btn.textContent = t === 'dark' ? 'Light mode' : 'Dark mode'; }
+  try { var t = localStorage.getItem('llguide-theme'); if (t) apply(t); } catch (e) {}
   btn.addEventListener('click', function () {
-    var dark = root.getAttribute('data-theme') ? root.getAttribute('data-theme') === 'dark'
-      : window.matchMedia('(prefers-color-scheme: dark)').matches;
-    var next = dark ? 'light' : 'dark';
-    root.setAttribute('data-theme', next);
+    var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    apply(next);
     try { localStorage.setItem('llguide-theme', next); } catch (e) {}
   });
 })();
