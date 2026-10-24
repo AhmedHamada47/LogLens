@@ -164,8 +164,7 @@ The editable sources are in `Assets/Icon/` (`LogLens.svg` for large sizes, `LogL
 
 | Version | Changes |
 | --- | --- |
-| **1.0.2** | Fixed: an empty `[CorrelationId:]` was saved as the ID `:`, which made unrelated entries (startup, background jobs) look like one request in Trace and the correlation filter. Existing sessions are cleaned up automatically on first start. |
-| **1.0.1** | New modern "Lens" app icon, with simplified artwork for the tray and taskbar, and a matching browser tab icon. |
+| **1.0.2** | New modern "Lens" app icon, with simplified artwork for the tray and taskbar, and a matching browser tab icon. Fixed: an empty `[CorrelationId:]` was saved as the ID `:`, which made unrelated entries (startup, background jobs) look like one request in Trace and the correlation filter. Existing sessions are cleaned up automatically on first start. |
 | **1.0.0** | First desktop release: Windows installer, desktop icon, tray icon, no console window. Fixed: unstyled pages when launched outside the install folder, upload stuck on "Processing...", and blank rows when scrolling large logs. |
 
 ## License
