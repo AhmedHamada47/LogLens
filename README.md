@@ -38,7 +38,8 @@ Download and run the newest `LogLens-Setup.exe`. It upgrades the installed versi
 3. In the session view:
    - filter by **ERROR / WARN / INFO**, search text or regex, and limit by time range
    - open **Insights** for the activity timeline and the top errors
-   - click **[stack]** to see a formatted stack trace, or **Trace** to see every entry from the same request (correlation ID)
+   - click a row to open its full message and stack trace, or **[stack]** to open just the stack trace. Opened rows stay open while you scroll.
+   - click **Trace** to see every entry from the same request (correlation ID)
    - export the current view as **CSV** or **JSON**
 
 | Key | Action |
@@ -50,6 +51,14 @@ Download and run the newest `LogLens-Setup.exe`. It upgrades the installed versi
 | `G` / `Shift+G` | Jump to top / bottom |
 | `?` | Show all shortcuts |
 
+### Reading a stack trace
+
+- Each **inner exception** gets its own group, **root cause first**, showing its type and message (*Root cause · inner exception 2*, *Inner exception 1*, *Outer exception*).
+- **FAILED HERE** marks the frame where the error was thrown. Start reading there.
+- **YOUR CODE** marks the first frame from your own code, so you can skip the framework frames.
+- Frames that have a line number show **`File.cs : line N`**, with the full path underneath. Microsoft/System frames never have line numbers in logs, and your own frames only have them when the app was deployed with its `.pdb` files.
+- Compiler-generated names are cleaned up: `<DeleteUserAsync>d__14.MoveNext()` shows as `DeleteUserAsync` *(async)*. Hover a frame to see the original line.
+
 Your sessions are stored in `%LOCALAPPDATA%\LogLens\loglens.db`. Uninstalling keeps them; delete that folder to remove all data.
 
 ## Features
@@ -59,7 +68,7 @@ Your sessions are stored in `%LOCALAPPDATA%\LogLens\loglens.db`. Uninstalling ke
 - **Smart filtering**: level, time range, text search or regex
 - **Request tracing**: follow a correlation ID across related entries
 - **Insights**: per-minute activity timeline and top-10 errors
-- **Stack trace viewer**: collapsible, formatted call stacks
+- **Stack trace viewer**: inner exceptions grouped root cause first, "failed here" and "your code" markers, file and line on every frame
 - **Streaming export**: CSV or JSON without loading everything into memory
 - **Dark / light theme** and **compact** row density
 - **Private by design**: listens on `127.0.0.1` only; nothing leaves your PC
@@ -76,7 +85,7 @@ The format is detected automatically from the first lines of the file:
 [2026-10-21T04:13:37] [WARN] Message                                         ← bracketed
 ```
 
-Lines without a timestamp are attached to the previous entry (stack traces, long SQL, and so on). Short level names such as `INF`, `WRN`, `ERR`, `DBG`, `FTL` and `VRB` are recognized.
+Lines without a timestamp are attached to the previous entry (stack traces, long SQL, and so on), up to 500 lines per entry. Short level names such as `INF`, `WRN`, `ERR`, `DBG`, `FTL` and `VRB` are recognized.
 
 ## How it works
 
@@ -158,6 +167,8 @@ The editable sources are in `Assets/Icon/` (`LogLens.svg` for large sizes, `LogL
 | A page looks unstyled after updating | Press **Ctrl+F5** once to refresh cached files. |
 | "LogLens could not start" | Another program is using port 5189. Close it, or change `DefaultPort` in `Program.cs`. |
 | Nothing happens when opening LogLens | It's already running: look for the tray icon, or open `http://127.0.0.1:5189`. |
+| A stack trace looks cut short | Logs uploaded with versions before 1.0.3 kept only 20 stack lines. Upload the file again. |
+| A frame from my own code has no line number | The app that wrote the log was deployed without its `.pdb` files. Include them in the deployment. |
 | The old icon still shows after updating | Windows caches icons. Delete the desktop shortcut and start LogLens from the Start Menu, or sign out and back in. |
 
 ## Release history
