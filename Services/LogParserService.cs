@@ -23,6 +23,13 @@ public class LogParserService
 
     private static readonly Regex[] Patterns = [SerilogTz, SerilogNoTz, Standard, Bracketed];
 
+    // Enough for long async/EF Core stack traces with several inner exceptions
+    private const int MaxContinuationLines = 500;
+
+    // Header line of an exception or inner exception: "Some.Namespace.FooException (0x80131904): message"
+    private static readonly Regex ExceptionHeader = new(
+        @"^[\w.`+]*(?:Exception|Error)(?:\s*\(0x[0-9A-Fa-f]+\))?:", RegexOptions.Compiled);
+
     // The id must start with a real character, so an empty "[CorrelationId:]" yields no id (not ":")
     private static readonly Regex CorrelationIdPattern = new(
         @"\[CorrelationId:?\s*([^\]\s:][^\]]*)\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -61,16 +68,22 @@ public class LogParserService
                 current = entry;
                 continuationCount = 0;
             }
-            else if (current != null && continuationCount < 20)
+            else if (current != null && continuationCount < MaxContinuationLines)
             {
                 continuationCount++;
                 var trimmed = line.TrimStart();
-                if (trimmed.StartsWith("at ") || trimmed.StartsWith("---") || trimmed.StartsWith("Exception"))
+                var isFrameOrMarker = trimmed.StartsWith("at ") || trimmed.StartsWith("---") || trimmed.StartsWith("Exception");
+                var isHeader = !isFrameOrMarker && ExceptionHeader.IsMatch(trimmed);
+
+                // Frames, separators and exception headers build the stack trace (headers give the viewer the exception chain)
+                if (isFrameOrMarker || isHeader)
                 {
                     current.StackTrace = string.IsNullOrEmpty(current.StackTrace)
                         ? line : current.StackTrace + "\n" + line;
                 }
-                else
+
+                // Everything else, and exception headers too, stays in the message so search and Top Errors keep working
+                if (!isFrameOrMarker)
                 {
                     var extra = trimmed.Length > 500 ? trimmed[..500] : trimmed;
                     if (current.Message.Length < 2000)

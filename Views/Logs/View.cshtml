@@ -252,48 +252,121 @@
 
         function escapeHtml(t) { var d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
 
-        function renderCallStack(stackText) {
-            var lines = stackText.split('\n').filter(function(l) { return l.trim(); });
-            var frames = [];
-            var exceptionLines = [];
-            lines.forEach(function(line) {
-                var trimmed = line.trim();
-                var atMatch = trimmed.match(/^at\s+(.+?)(?:\s+in\s+(.+?):line\s+(\d+))?$/);
-                if (atMatch) {
-                    var method = atMatch[1];
-                    var file = atMatch[2] || null;
-                    var lineNum = atMatch[3] || null;
-                    var parenIdx = method.indexOf('(');
-                    var className = '', methodName = method, params = '';
-                    if (parenIdx > 0) {
-                        params = method.substring(parenIdx);
-                        var fullName = method.substring(0, parenIdx);
-                        var lastDot = fullName.lastIndexOf('.');
-                        if (lastDot > 0) { className = fullName.substring(0, lastDot); methodName = fullName.substring(lastDot + 1); }
-                        else { methodName = fullName; }
-                    }
-                    frames.push({ className: className, method: methodName, params: params, file: file, line: lineNum });
-                } else if (trimmed.startsWith('---')) {
-                    frames.push({ separator: true });
-                } else {
-                    exceptionLines.push(trimmed);
-                }
+        // ===== STACK TRACE VIEW =====
+        // .NET prints an exception like this:
+        //   Outer: message
+        //    ---> Inner: message                          (one "--->" header per inner exception)
+        //      at ... (frames of the innermost exception first)
+        //      --- End of stack trace from previous location ---   (an await/async step, NOT a new exception: hidden)
+        //      --- End of inner exception stack trace ---          (the frames below belong to the next outer exception)
+        //      at ...
+        var CS_HEADER = /^(?:--->\s*)?([\w.`+<>]*(?:Exception|Error))(?:\s*\(0x[0-9A-Fa-f]+\))?:\s*([\s\S]*)$/;
+        var CS_HEADER_IN_TEXT = /([\w.`+]+(?:Exception|Error))(?:\s*\(0x[0-9A-Fa-f]+\))?:/g;
+        var CS_LIBRARIES = /^(System|Microsoft|Hangfire|MediatR|Newtonsoft|Serilog|Npgsql|Polly|AutoMapper|FluentValidation|Swashbuckle|StackExchange|Azure|Grpc|Google|Stripe|InvokeStub_|lambda_)\b/;
+
+        function parseFrame(text) {
+            var m = text.match(/^at\s+(.+?)(?:\s+in\s+(.+?):line\s+(\d+))?$/);
+            if (!m) return null;
+            var full = m[1], params = '';
+            var parenIdx = full.indexOf('(');
+            if (parenIdx > 0) { params = full.substring(parenIdx); full = full.substring(0, parenIdx); }
+            var lastDot = full.lastIndexOf('.');
+            var className = lastDot > 0 ? full.substring(0, lastDot) : '';
+            var method = lastDot > 0 ? full.substring(lastDot + 1) : full;
+            var kind = '';
+            // Compiler-generated names: show the method you actually wrote
+            var asyncMatch = className.match(/^(.*)[.+]<([^>]+)>d__\d+$/);
+            if (method === 'MoveNext' && asyncMatch) { className = asyncMatch[1]; method = asyncMatch[2]; kind = 'async'; }
+            var lambdaMatch = method.match(/^<([^>]+)>b__[\w]+$/);
+            if (lambdaMatch) { method = lambdaMatch[1]; kind = 'lambda'; }
+            className = className.replace(/[.+]<>c(__DisplayClass[\w]+)?$/, '');
+            var file = m[2] || null;
+            return {
+                raw: text.replace(/^at\s+/, ''),
+                className: className, method: method, params: params, kind: kind,
+                file: file, fileName: file ? file.split(/[\\/]/).pop() : null, line: m[3] || null,
+                isApp: !!file || (!!className && !CS_LIBRARIES.test(className))
+            };
+        }
+
+        // Exception headers from the message, for entries saved before headers were kept in the stack trace
+        function headersFromMessage(message) {
+            var found = [], m, seen = {};
+            CS_HEADER_IN_TEXT.lastIndex = 0;
+            var matches = [];
+            while ((m = CS_HEADER_IN_TEXT.exec(message || '')) !== null) matches.push({ type: m[1], start: m.index, end: CS_HEADER_IN_TEXT.lastIndex });
+            matches.forEach(function(x, i) {
+                var text = message.substring(x.end, i + 1 < matches.length ? matches[i + 1].start : message.length).trim();
+                var key = x.type + '|' + text;
+                if (seen[key]) return;
+                seen[key] = true;
+                found.push({ type: x.type, message: text.length > 300 ? text.substring(0, 300) + '...' : text });
             });
-            if (frames.length === 0) return '<pre class="stack-trace mt-1" style="font-size:0.65rem;max-height:200px;">' + escapeHtml(stackText) + '</pre>';
+            return found;
+        }
+
+        function renderCallStack(stackText, message) {
+            var lines = stackText.split('\n').map(function(l) { return l.trim(); }).filter(function(l) { return l; });
+            var headers = [];   // outermost exception first (the order .NET prints them)
+            var groups = [[]];  // frames per exception, innermost first (the order .NET prints frames)
+            lines.forEach(function(t) {
+                var f = parseFrame(t);
+                if (f) { groups[groups.length - 1].push(f); return; }
+                if (/^---\s*End of inner exception/i.test(t)) { groups.push([]); return; }
+                if (/^---\s*End of/i.test(t)) return; // async step inside the same exception: nothing to show
+                var h = t.match(CS_HEADER);
+                if (h) headers.push({ type: h[1], message: h[2] });
+                else if (headers.length) headers[headers.length - 1].message += ' ' + t;
+                else headers.push({ type: '', message: t });
+            });
+            groups = groups.filter(function(g) { return g.length; });
+            if (!headers.length) headers = headersFromMessage(message);
+
+            var frameCount = groups.reduce(function(n, g) { return n + g.length; }, 0);
+            if (frameCount === 0) return '<pre class="stack-trace mt-1" style="font-size:0.65rem;">' + escapeHtml(stackText) + '</pre>';
+
+            var total = groups.length;
+            // Headers line up with groups when there is one header per exception: group 0 (innermost) = last header
+            var headerFor = function(g) {
+                if (headers.length === total) return headers[total - 1 - g];
+                if (total === 1 && headers.length) return headers[headers.length - 1];
+                return null;
+            };
             var html = '<div class="call-stack mt-1">';
-            if (exceptionLines.length > 0) html += '<div class="cs-exception">' + escapeHtml(exceptionLines.join(' ')) + '</div>';
-            html += '<div class="cs-frames">';
-            frames.forEach(function(f, i) {
-                if (f.separator) { html += '<div class="cs-separator">--- End of inner exception ---</div>'; return; }
-                var isApp = f.className && !f.className.match(/^(System\.|Microsoft\.|lambda_)/);
-                var fc = isApp ? 'cs-frame cs-frame-app' : 'cs-frame cs-frame-system';
-                html += '<div class="' + fc + '"><span class="cs-num">' + i + '</span><div class="cs-detail">';
-                if (f.className) html += '<span class="cs-class">' + escapeHtml(f.className) + '.</span>';
-                html += '<span class="cs-method">' + escapeHtml(f.method) + '</span><span class="cs-params">' + escapeHtml(f.params) + '</span>';
-                if (f.file) html += '<div class="cs-file">' + escapeHtml(f.file) + ':' + f.line + '</div>';
+            groups.forEach(function(frames, g) {
+                var label = total === 1 ? 'Exception'
+                    : g === 0 ? 'Root cause · inner exception ' + (total - 1)
+                    : g === total - 1 ? 'Outer exception'
+                    : 'Inner exception ' + (total - 1 - g);
+                var head = headerFor(g);
+                html += '<div class="cs-group">';
+                html += '<div class="cs-exception"><span class="cs-ex-label">' + escapeHtml(label) + '</span>';
+                if (head) {
+                    if (head.type) html += '<span class="cs-ex-type">' + escapeHtml(head.type) + '</span>';
+                    if (head.message) html += '<span class="cs-ex-msg">' + (head.type ? ': ' : '') + escapeHtml(head.message) + '</span>';
+                }
+                html += '</div><div class="cs-frames">';
+                var n = 0, yoursMarked = false;
+                frames.forEach(function(f) {
+                    var tags = '';
+                    var failed = g === 0 && n === 0;
+                    if (failed) tags += '<span class="cs-tag cs-tag-failed">failed here</span>';
+                    if (f.isApp && !yoursMarked) { tags += '<span class="cs-tag cs-tag-yours">your code</span>'; yoursMarked = true; }
+                    var fc = 'cs-frame ' + (f.isApp ? 'cs-frame-app' : 'cs-frame-system') + (failed ? ' cs-frame-failed' : '');
+                    html += '<div class="' + fc + '" title="' + escapeHtml(f.raw) + '"><span class="cs-num">' + n + '</span><div class="cs-detail">';
+                    if (f.className) html += '<span class="cs-class">' + escapeHtml(f.className) + '.</span>';
+                    html += '<span class="cs-method">' + escapeHtml(f.method) + '</span><span class="cs-params">' + escapeHtml(f.params) + '</span>';
+                    if (f.kind) html += '<span class="cs-kind">' + f.kind + '</span>';
+                    if (f.file) html += '<span class="cs-line">' + escapeHtml(f.fileName) + ' : line ' + f.line + '</span>';
+                    else if (f.isApp) html += '<span class="cs-noline">no line number in log</span>';
+                    html += tags;
+                    if (f.file) html += '<div class="cs-file">' + escapeHtml(f.file) + ' : line ' + f.line + '</div>';
+                    html += '</div></div>';
+                    n++;
+                });
                 html += '</div></div>';
             });
-            html += '</div></div>';
+            html += '</div>';
             return html;
         }
 
@@ -320,7 +393,10 @@
             container: null,
             tbody: null,
             lastRenderStart: -1,
-            lastRenderEnd: -1
+            lastRenderEnd: -1,
+            // Opened entries by row index: { id, detail, stack, h (extra height) }.
+            // Kept here so they stay open when rows are re-rendered while scrolling.
+            open: {}
         };
 
         VS.buildUrl = function(offset, limit) {
@@ -377,7 +453,7 @@
             return p;
         };
 
-        VS.renderRow = function(entry) {
+        VS.renderRow = function(entry, idx) {
             var lc = entry.level.toLowerCase();
             var rowClass = {error:'log-error',warn:'log-warn',info:'log-info',debug:'log-debug',fatal:'log-fatal',trace:'log-trace'}[lc] || '';
             var badgeClass = {error:'badge-error',warn:'badge-warn',info:'badge-info',debug:'badge-debug',fatal:'badge-fatal',trace:'badge-trace'}[lc] || 'badge-info';
@@ -392,11 +468,12 @@
                 } catch(e) {}
             }
             var extras = '';
-            if (entry.stackTrace) extras += ' <button class="stack-toggle" onclick="event.stopPropagation(); vsToggleStack(this, ' + escapeHtml(JSON.stringify(entry.stackTrace)) + ')" aria-label="Toggle stack trace">[stack]</button>';
+            if (entry.stackTrace) extras += ' <button class="stack-toggle" aria-label="Toggle stack trace">[stack]</button>';
             if (entry.correlationId) extras += ' <a href="' + VS_VIEW_URL + '?correlationId=' + encodeURIComponent(entry.correlationId) + '" class="correlation-link" title="Filter by correlation">' + escapeHtml(entry.correlationId.substring(0,8)) + '</a>';
             if (lc === 'error' || lc === 'fatal' || lc === 'warn') extras += ' <button class="trace-btn" onclick="event.stopPropagation(); openTrace(' + entry.id + ')" title="Trace">Trace</button>';
 
-            return '<tr class="log-row ' + rowClass + '" style="height:' + VS.ROW_STYLE_HEIGHT + 'px;">' +
+            var open = VS.openFor(idx);
+            return '<tr class="log-row ' + rowClass + (open && open.detail ? ' log-row-expanded' : '') + '" data-idx="' + idx + '" style="height:' + VS.ROW_STYLE_HEIGHT + 'px;">' +
                 '<td class="timestamp-cell">' + escapeHtml(ts) + '</td>' +
                 '<td><span class="level-badge ' + badgeClass + '">' + escapeHtml(entry.level) + '</span></td>' +
                 '<td class="source-cell" title="' + escapeHtml(entry.source) + '">' + escapeHtml(entry.source) + '</td>' +
@@ -404,11 +481,60 @@
                 (extras ? '<span class="msg-actions">' + extras + '</span>' : '') + '</td></tr>';
         };
 
+        // The opened state of a row, if it still belongs to the same entry
+        VS.openFor = function(idx) {
+            var o = VS.open[idx];
+            return o && VS.cache[idx] && VS.cache[idx].id === o.id ? o : null;
+        };
+
+        // Extra rows under an opened entry: full message and/or [stack]
+        VS.renderOpen = function(entry, idx) {
+            var o = VS.openFor(idx);
+            if (!o) return '';
+            var html = '';
+            if (o.detail) {
+                var detail = '<div class="row-detail"><strong>Full Message:</strong>\n' + escapeHtml(entry.message);
+                if (entry.source) detail += '\n\n<strong>Source:</strong> ' + escapeHtml(entry.source);
+                if (entry.correlationId) detail += '\n<strong>Correlation:</strong> ' + escapeHtml(entry.correlationId);
+                detail += '\n<strong>Timestamp:</strong> ' + escapeHtml(entry.timestamp);
+                if (entry.stackTrace) detail += '\n\n<strong>Stack Trace:</strong>\n' + renderCallStack(entry.stackTrace, entry.message);
+                detail += '</div>';
+                html += '<tr class="vs-detail-row" data-open-idx="' + idx + '"><td colspan="4" style="padding:0;">' + detail + '</td></tr>';
+            }
+            if (o.stack && entry.stackTrace) {
+                html += '<tr class="vs-stack-row" data-open-idx="' + idx + '"><td colspan="4" style="padding: 0 0.85rem 0.85rem 0.85rem;">' + renderCallStack(entry.stackTrace, entry.message) + '</td></tr>';
+            }
+            return html;
+        };
+
+        // ---- Scroll math that includes the extra height of opened entries ----
+        VS.openIndexes = function() {
+            return Object.keys(VS.open).map(Number).sort(function(a, b) { return a - b; });
+        };
+        VS.extraAbove = function(idx) {
+            var sum = 0;
+            VS.openIndexes().forEach(function(k) { if (k < idx) sum += VS.open[k].h || 0; });
+            return sum;
+        };
+        VS.rowTop = function(idx) { return idx * VS.ROW_HEIGHT + VS.extraAbove(idx); };
+        // Which row index is at pixel y (y inside an opened entry's details counts as that entry)
+        VS.indexAt = function(y) {
+            var extra = 0, keys = VS.openIndexes();
+            for (var n = 0; n < keys.length; n++) {
+                var k = keys[n], h = VS.open[k].h || 0;
+                var rowEnd = k * VS.ROW_HEIGHT + extra + VS.ROW_HEIGHT;
+                if (y < rowEnd) break;
+                if (y < rowEnd + h) return k;
+                extra += h;
+            }
+            return Math.floor((y - extra) / VS.ROW_HEIGHT);
+        };
+
         VS.render = function() {
             var scrollTop = VS.container.scrollTop;
             var viewH = VS.container.clientHeight;
-            var startIdx = Math.max(0, Math.floor(scrollTop / VS.ROW_HEIGHT) - VS.BUFFER);
-            var endIdx = Math.min(VS.totalCount, Math.ceil((scrollTop + viewH) / VS.ROW_HEIGHT) + VS.BUFFER);
+            var startIdx = Math.max(0, VS.indexAt(scrollTop) - VS.BUFFER);
+            var endIdx = Math.min(VS.totalCount, VS.indexAt(scrollTop + viewH) + 1 + VS.BUFFER);
 
             if (startIdx === VS.lastRenderStart && endIdx === VS.lastRenderEnd) return;
             VS.lastRenderStart = startIdx;
@@ -426,11 +552,15 @@
                 Promise.all(fetches).then(function(results) {
                     if (results.indexOf(false) !== -1) return;
                     // Re-render at the current scroll position once the data has arrived
-                    VS.lastRenderStart = -1;
-                    VS.lastRenderEnd = -1;
-                    VS.render();
+                    VS.rerender();
                 });
             }
+        };
+
+        VS.rerender = function() {
+            VS.lastRenderStart = -1;
+            VS.lastRenderEnd = -1;
+            VS.render();
         };
 
         VS.doRender = function(startIdx, endIdx) {
@@ -440,15 +570,16 @@
                 document.getElementById('vsTotal').textContent = 'of 0 entries';
                 return;
             }
-            var topPad = startIdx * VS.ROW_HEIGHT;
-            var bottomPad = Math.max(0, (VS.totalCount - endIdx) * VS.ROW_HEIGHT);
-            var html = '<tr style="height:' + topPad + 'px;"><td colspan="4"></td></tr>';
+            var topPad = VS.rowTop(startIdx);
+            var totalHeight = VS.totalCount * VS.ROW_HEIGHT + VS.extraAbove(Infinity);
+            var bottomPad = Math.max(0, totalHeight - VS.rowTop(endIdx));
+            var html = '<tr class="vs-pad" style="height:' + topPad + 'px;"><td colspan="4" style="padding:0;border:0;"></td></tr>';
             for (var i = startIdx; i < endIdx; i++) {
                 var entry = VS.cache[i];
-                if (entry) html += VS.renderRow(entry);
+                if (entry) html += VS.renderRow(entry, i) + VS.renderOpen(entry, i);
                 else html += '<tr style="height:' + VS.ROW_HEIGHT + 'px;"><td colspan="4"></td></tr>';
             }
-            html += '<tr style="height:' + bottomPad + 'px;"><td colspan="4"></td></tr>';
+            html += '<tr class="vs-pad" style="height:' + bottomPad + 'px;"><td colspan="4" style="padding:0;border:0;"></td></tr>';
             VS.tbody.innerHTML = html;
 
             // Rows can end up taller than ROW_HEIGHT (borders, fonts); use the real height so positions don't drift
@@ -456,14 +587,24 @@
             var realHeight = firstRow ? firstRow.getBoundingClientRect().height : 0;
             if (realHeight && Math.abs(realHeight - VS.ROW_HEIGHT) > 0.1) {
                 VS.ROW_HEIGHT = realHeight;
-                VS.lastRenderStart = -1;
-                VS.lastRenderEnd = -1;
-                VS.render();
+                VS.rerender();
                 return;
             }
 
-            var visStart = Math.floor(VS.container.scrollTop / VS.ROW_HEIGHT) + 1;
-            var visEnd = Math.min(VS.totalCount, Math.ceil((VS.container.scrollTop + VS.container.clientHeight) / VS.ROW_HEIGHT));
+            // Measure opened entries so the scroll math accounts for them, even after they scroll out of the rendered window
+            var changed = false;
+            var heights = {};
+            VS.tbody.querySelectorAll('[data-open-idx]').forEach(function(tr) {
+                var k = tr.getAttribute('data-open-idx');
+                heights[k] = (heights[k] || 0) + tr.getBoundingClientRect().height;
+            });
+            Object.keys(heights).forEach(function(k) {
+                if (VS.open[k] && Math.abs((VS.open[k].h || 0) - heights[k]) > 1) { VS.open[k].h = heights[k]; changed = true; }
+            });
+            if (changed) { VS.rerender(); return; }
+
+            var visStart = VS.indexAt(VS.container.scrollTop) + 1;
+            var visEnd = Math.min(VS.totalCount, VS.indexAt(VS.container.scrollTop + VS.container.clientHeight - 1) + 1);
             document.getElementById('vsRange').textContent = visStart.toLocaleString() + ' – ' + visEnd.toLocaleString();
             document.getElementById('vsTotal').textContent = 'of ' + VS.totalCount.toLocaleString() + (VS.totalCount !== @Model.TotalCount ? ' (filtered)' : '') + ' entries';
 
@@ -475,6 +616,7 @@
         // Init
         VS.container = document.getElementById('logContainer');
         VS.tbody = document.getElementById('logBody');
+        VS.container.style.overflowAnchor = 'none'; // we position rows ourselves; browser scroll anchoring would fight it
         VS.fetchRange(0, VS.FETCH_SIZE).then(function() {
             VS.render();
         });
@@ -489,48 +631,21 @@
         document.getElementById('scrollTop').addEventListener('click', function() { VS.container.scrollTop = 0; });
         document.getElementById('scrollBottom').addEventListener('click', function() { VS.container.scrollTop = VS.container.scrollHeight; });
 
-        // Click-to-expand: show full message on row click
+        // Click a row to open/close its full message; [stack] opens/closes just the stack trace.
+        // The open state lives in VS.open, so opened rows survive re-rendering while scrolling.
         VS.tbody.addEventListener('click', function(e) {
             var row = e.target.closest('.log-row');
-            if (!row || e.target.closest('.trace-btn') || e.target.closest('.correlation-link') || e.target.closest('.stack-toggle')) return;
-            var next = row.nextElementSibling;
-            if (next && next.classList.contains('vs-detail-row')) {
-                next.remove();
-                row.classList.remove('log-row-expanded');
-                return;
-            }
-            // Find the entry data from row index
-            var allRows = VS.tbody.querySelectorAll('.log-row');
-            var rowIdx = Array.from(allRows).indexOf(row);
-            if (rowIdx < 0) return;
-            var entryIdx = VS.lastRenderStart + rowIdx;
-            var entry = VS.cache[entryIdx];
+            if (!row || e.target.closest('.trace-btn') || e.target.closest('.correlation-link')) return;
+            var idx = Number(row.getAttribute('data-idx'));
+            var entry = VS.cache[idx];
             if (!entry) return;
-            row.classList.add('log-row-expanded');
-            var tr = document.createElement('tr');
-            tr.className = 'vs-detail-row';
-            var detail = '<div class="row-detail"><strong>Full Message:</strong>\n' + escapeHtml(entry.message);
-            if (entry.source) detail += '\n\n<strong>Source:</strong> ' + escapeHtml(entry.source);
-            if (entry.correlationId) detail += '\n<strong>Correlation:</strong> ' + escapeHtml(entry.correlationId);
-            detail += '\n<strong>Timestamp:</strong> ' + escapeHtml(entry.timestamp);
-            if (entry.stackTrace) detail += '\n\n<strong>Stack Trace:</strong>\n' + renderCallStack(entry.stackTrace);
-            detail += '</div>';
-            tr.innerHTML = '<td colspan="4" style="padding:0;">' + detail + '</td>';
-            row.after(tr);
+            var o = VS.openFor(idx) || { id: entry.id, detail: false, stack: false, h: 0 };
+            if (e.target.closest('.stack-toggle')) o.stack = !o.stack;
+            else o.detail = !o.detail;
+            if (o.detail || o.stack) { o.h = 0; VS.open[idx] = o; }
+            else delete VS.open[idx];
+            VS.rerender();
         });
-
-        function vsToggleStack(el, stackText) {
-            var row = el.closest('tr');
-            var existing = row.nextElementSibling;
-            if (existing && existing.classList.contains('vs-stack-row')) {
-                existing.remove();
-                return;
-            }
-            var tr = document.createElement('tr');
-            tr.className = 'vs-stack-row';
-            tr.innerHTML = '<td colspan="4" style="padding: 0 0.85rem 0.85rem 0.85rem;">' + renderCallStack(stackText) + '</td>';
-            row.after(tr);
-        }
 
         // Search debounce — instant results as you type
         var searchDebounce = null;
@@ -541,6 +656,7 @@
                 VS.search = val;
                 VS.cache = {};
                 VS.cacheKeys = [];
+                VS.open = {};
                 VS.pendingFetches = {};
                 VS.totalCount = 0;
                 VS.lastRenderStart = -1;
@@ -625,7 +741,7 @@
                         html += '<span class="level-badge ' + bc + '">' + escapeHtml(e.level) + '</span>';
                         if (e.source) html += '<span style="font-size:0.7rem;color:var(--text-muted);">' + escapeHtml(e.source) + '</span>';
                         html += '</div><div class="trace-step-msg">' + escapeHtml(e.message) + '</div>';
-                        if (e.stackTrace) html += renderCallStack(e.stackTrace);
+                        if (e.stackTrace) html += renderCallStack(e.stackTrace, e.message);
                         html += '</div></div>';
                     });
                     html += '</div>';

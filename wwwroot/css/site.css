@@ -438,8 +438,6 @@ body {
     word-break: break-all;
     color: #fca5a5;
     margin-top: 0.5rem;
-    max-height: 300px;
-    overflow-y: auto;
     line-height: 1.7;
 }
 
@@ -1171,8 +1169,6 @@ kbd {
     border: 1px solid var(--error-border);
     border-radius: var(--radius-xs);
     padding: 0.5rem;
-    max-height: 350px;
-    overflow-y: auto;
 }
 
 .cs-exception {
@@ -1263,6 +1259,41 @@ kbd {
     margin: 0.2rem 0;
 }
 
+/* Exception groups (outer / inner exceptions) and stack frame details */
+.cs-group + .cs-group { margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px solid var(--error-border); }
+.cs-ex-label {
+    display: inline-block;
+    margin-right: 0.5rem;
+    padding: 0 0.45rem;
+    border: 1px solid var(--error-border);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font-size: 0.58rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    vertical-align: 1px;
+}
+.cs-ex-type { color: var(--error); }
+.cs-ex-msg { color: var(--text-primary); font-weight: 400; }
+.cs-kind { margin-left: 0.35rem; color: var(--text-muted); font-size: 0.56rem; font-style: italic; }
+.cs-line { margin-left: 0.5rem; color: var(--trace); font-weight: 600; white-space: nowrap; }
+.cs-noline { margin-left: 0.5rem; color: var(--text-muted); font-size: 0.56rem; font-style: italic; white-space: nowrap; }
+.cs-tag {
+    margin-left: 0.4rem;
+    padding: 0 0.4rem;
+    border-radius: 999px;
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.cs-tag-failed { background: var(--error); color: #fff; }
+.cs-tag-yours { border: 1px solid #8b5cf6; color: #8b5cf6; }
+.cs-frame-failed { background: rgba(239, 68, 68, 0.08); border-left-color: var(--error) !important; }
+:root[data-theme="light"] .cs-line { color: #059669; }
+
 /* ===== UX: ROW EXPAND ===== */
 .log-row-expanded td {
     background: var(--bg-card) !important;
@@ -1277,8 +1308,6 @@ kbd {
     word-break: break-word;
     color: var(--text-primary);
     line-height: 1.7;
-    max-height: 350px;
-    overflow-y: auto;
     font-family: 'JetBrains Mono', monospace;
 }
 

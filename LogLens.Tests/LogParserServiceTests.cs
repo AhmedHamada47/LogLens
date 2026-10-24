@@ -101,6 +101,35 @@ public class LogParserServiceTests
     }
 
     [Fact]
+    public void KeepsLongStackTraces()
+    {
+        var frames = string.Join("\n", Enumerable.Range(1, 60).Select(i => $"   at App.Frame{i}() in C:\\src\\App.cs:line {i}"));
+        var entries = Parse("2026-09-07 20:57:44.041 +02:00 [ERR] [MyApp] Failed\n" + frames);
+        Assert.Single(entries);
+        Assert.Contains("Frame60", entries[0].StackTrace);
+    }
+
+    [Fact]
+    public void KeepsExceptionChainInStackTrace()
+    {
+        var text = "2026-09-07 20:57:44.041 +02:00 [ERR] [MyApp] Request failed\n" +
+                   "System.InvalidOperationException: Outer problem\n" +
+                   " ---> Microsoft.Data.SqlClient.SqlException (0x80131904): Inner problem\n" +
+                   "   at Microsoft.Data.SqlClient.SqlCommand.Execute()\n" +
+                   "   --- End of inner exception stack trace ---\n" +
+                   "   at App.Service.Run() in C:\\src\\Service.cs:line 42";
+        var entries = Parse(text);
+        Assert.Single(entries);
+        var stack = entries[0].StackTrace!;
+        Assert.Contains("System.InvalidOperationException: Outer problem", stack);
+        Assert.Contains("---> Microsoft.Data.SqlClient.SqlException", stack);
+        Assert.Contains("--- End of inner exception stack trace ---", stack);
+        Assert.Contains("Service.cs:line 42", stack);
+        // the exception text stays searchable in the message
+        Assert.Contains("InvalidOperationException", entries[0].Message);
+    }
+
+    [Fact]
     public void HandlesMultipleEntries()
     {
         var text = "2024-01-15 10:30:45 [INF] App - First\n" +
