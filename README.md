@@ -155,11 +155,11 @@ On Windows you can check that the Mac version compiles with `dotnet publish LogL
 
 ### Release a new version
 
-Pick the next version number (for example `v1.0.4`), then:
+Pick the next version number (for example `v1.1.1`), then:
 
 ```bash
-git tag -a v1.0.4 -m "LogLens 1.0.4"
-git push origin v1.0.4
+git tag -a v1.1.1 -m "LogLens 1.1.1"
+git push origin v1.1.1
 ```
 
 The version is taken from the tag and stamped into the installer. The **Release** GitHub Actions workflow runs the tests, builds the Windows installer and both Mac disk images, starts the Mac app once to check it works, and attaches all three downloads to a **draft** GitHub Release. Download and test the draft, then click **Publish release**. The download link above always points to the newest published release.
@@ -212,6 +212,7 @@ The editable sources are in `Assets/Icon/` (`LogLens.svg` for large sizes, `LogL
 
 | Version | Changes |
 | --- | --- |
+| **1.1.0** | **macOS version** for Apple Silicon (M1 or newer) and Intel Macs, as a `.dmg` with drag-to-install. On Mac, LogLens lives in the browser with a **Quit LogLens** button (no Dock or tray icon). Windows is unchanged. |
 | **1.0.3** | Opened log entries stay open while you scroll, with a single scrollbar. Stack traces now show each inner exception as its own group (root cause first) with its type and message, mark where it **failed** and the first frame in **your code**, show `File.cs : line N` on every frame, and number frames without gaps. Long stack traces are kept up to 500 lines (was 20). Fixed: the [stack] button did nothing. |
 | **1.0.2** | New modern "Lens" app icon, with simplified artwork for the tray and taskbar, and a matching browser tab icon. Fixed: an empty `[CorrelationId:]` was saved as the ID `:`, which made unrelated entries (startup, background jobs) look like one request in Trace and the correlation filter. Existing sessions are cleaned up automatically on first start. |
 | **1.0.0** | First desktop release: Windows installer, desktop icon, tray icon, no console window. Fixed: unstyled pages when launched outside the install folder, upload stuck on "Processing...", and blank rows when scrolling large logs. |
