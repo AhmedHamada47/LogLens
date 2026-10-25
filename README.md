@@ -12,7 +12,7 @@
 
 A fast, private desktop log viewer for Windows and macOS, built for Serilog-style logs. Drop in a log file and get filtering, search, error summaries and request tracing, all on your own PC.
 
-Built with ASP.NET Core 9 MVC and SQLite, packaged as a desktop app with its own icon, tray icon and installer.
+Built with ASP.NET Core 9 MVC and SQLite, packaged as a desktop app: an installer with a tray icon on Windows, and a drag-to-install `.app` on macOS.
 
 ## Download
 
@@ -110,14 +110,14 @@ Lines without a timestamp are attached to the previous entry (stack traces, long
 
 ## How it works
 
-LogLens is a regular ASP.NET Core MVC web app running inside a Windows desktop shell:
+LogLens is a regular ASP.NET Core MVC web app running inside a small desktop shell for Windows and macOS:
 
 - the app starts a local web server on `http://127.0.0.1:5189` and opens it in your default browser
 - **Windows:** `LogLens.exe` is a windowed app (`WinExe`) with a tray icon (`Desktop/TrayIcon.cs`), published **self-contained** and wrapped by an **Inno Setup** installer that adds desktop and Start Menu shortcuts
 - **macOS:** the same code is built for `osx-arm64` / `osx-x64` (the tray code is Windows-only), packaged as `LogLens.app` (no Dock icon, closed with the **Quit LogLens** button) inside a `.dmg`
 - one project builds both: `-r osx-arm64` / `-r osx-x64` selects the Mac build (see `LogLens.csproj`); anything else builds for Windows
 
-For a full walkthrough (every file, the icon, the installer, the parsing pipeline, and each problem solved along the way), open [Docs/LogLens-Desktop-Guide.html](Docs/LogLens-Desktop-Guide.html).
+For a full walkthrough (every file, the icon, the installer, the parsing pipeline, and each problem solved along the way), open [Docs/LogLens-Desktop-Guide.html](Docs/LogLens-Desktop-Guide.html). The guide was written for the Windows version; the macOS packaging is described in this README and in `installer/macos/`.
 
 ## Development
 
@@ -132,6 +132,14 @@ The app opens at `http://127.0.0.1:5189`.
 ```bash
 dotnet test LogLens.Tests/LogLens.Tests.csproj
 ```
+
+### Branches
+
+| Branch | Purpose |
+| --- | --- |
+| `main` | Current code; releases are tagged from here |
+| `Main-Backup` | Snapshot of `main` before macOS support (the v1.0.3 code), kept as a safe restore point |
+| `Feature/Apple-Version` | Where macOS support was built and tested before it was merged into `main` |
 
 ### Build the installer locally
 
@@ -184,7 +192,7 @@ The editable sources are in `Assets/Icon/` (`LogLens.svg` for large sizes, `LogL
 | `.github/workflows/release.yml` | Builds the Windows and Mac downloads into a draft release on `v*` tags |
 | `LogLens.Tests/` | xUnit tests for the parser |
 | `Assets/Icon/` | Editable SVG sources of the app icon, and the Mac icon (`LogLens.icns`) |
-| `Docs/LogLens-Desktop-Guide.html` | Full technical guide |
+| `Docs/LogLens-Desktop-Guide.html` | Full technical guide (Windows version) |
 
 ## Security
 
