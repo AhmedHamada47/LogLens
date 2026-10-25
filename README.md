@@ -6,17 +6,25 @@
 
 <p align="center">
   <a href="https://github.com/AhmedHamada47/LogLens/releases/latest"><img src="https://img.shields.io/github/v/release/AhmedHamada47/LogLens?label=latest" alt="Latest release"></a>
-  <img src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4" alt="Windows 10 | 11">
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS-0078D4" alt="Windows | macOS">
   <img src="https://img.shields.io/badge/.NET-9-512BD4" alt=".NET 9">
 </p>
 
-A fast, private desktop log viewer for Windows, built for Serilog-style logs. Drop in a log file and get filtering, search, error summaries and request tracing, all on your own PC.
+A fast, private desktop log viewer for Windows and macOS, built for Serilog-style logs. Drop in a log file and get filtering, search, error summaries and request tracing, all on your own PC.
 
 Built with ASP.NET Core 9 MVC and SQLite, packaged as a desktop app with its own icon, tray icon and installer.
 
 ## Download
 
-**[⬇ Download LogLens for Windows](https://github.com/AhmedHamada47/LogLens/releases/latest/download/LogLens-Setup.exe)**
+| Your computer | Download |
+| --- | --- |
+| **Windows 10 / 11** (64-bit) | **[⬇ LogLens-Setup.exe](https://github.com/AhmedHamada47/LogLens/releases/latest/download/LogLens-Setup.exe)** |
+| **Mac with Apple Silicon** (M1 or newer) | **[⬇ LogLens-mac-AppleSilicon.dmg](https://github.com/AhmedHamada47/LogLens/releases/latest/download/LogLens-mac-AppleSilicon.dmg)** |
+| **Mac with Intel** | **[⬇ LogLens-mac-Intel.dmg](https://github.com/AhmedHamada47/LogLens/releases/latest/download/LogLens-mac-Intel.dmg)** |
+
+Not sure which Mac you have? Apple menu  → **About This Mac**: "Chip: Apple M…" means Apple Silicon, "Processor: Intel" means Intel.
+
+### Windows
 
 1. Run `LogLens-Setup.exe`. No admin rights are needed.
 2. If Windows SmartScreen shows *"Windows protected your PC"*, click **More info → Run anyway** (the app is not code-signed).
@@ -27,9 +35,22 @@ Built with ASP.NET Core 9 MVC and SQLite, packaged as a desktop app with its own
 
 Requires Windows 10/11 (64-bit). Nothing else to install; the .NET runtime is included.
 
+### macOS
+
+1. Open the `.dmg` and drag **LogLens** onto **Applications**.
+2. Open LogLens from Applications. It opens in your browser.
+3. **The first time**, macOS says it can't verify the app (LogLens isn't signed with a paid Apple Developer certificate):
+   - click **Done**, then open **System Settings → Privacy & Security**
+   - scroll to **Security** and click **Open Anyway** next to "LogLens", then confirm with your password or Touch ID
+   - this is needed only once
+4. LogLens has no Dock icon; it lives in your browser. Click **Quit LogLens** at the top of the page to close it. Opening LogLens again while it's running just reopens the page.
+
+Requires macOS 12 Monterey or newer. Nothing else to install.
+
 ### Updating
 
-Download and run the newest `LogLens-Setup.exe`. It upgrades the installed version in place and keeps all your sessions. If LogLens is running, the installer asks you to close it first.
+- **Windows:** run the newest `LogLens-Setup.exe`. It upgrades in place and keeps all your sessions. If LogLens is running, the installer asks you to close it first.
+- **macOS:** quit LogLens, then drag the new version onto Applications and choose **Replace**. Your sessions are kept.
 
 ## Using LogLens
 
@@ -59,7 +80,7 @@ Download and run the newest `LogLens-Setup.exe`. It upgrades the installed versi
 - Frames that have a line number show **`File.cs : line N`**, with the full path underneath. Microsoft/System frames never have line numbers in logs, and your own frames only have them when the app was deployed with its `.pdb` files.
 - Compiler-generated names are cleaned up: `<DeleteUserAsync>d__14.MoveNext()` shows as `DeleteUserAsync` *(async)*. Hover a frame to see the original line.
 
-Your sessions are stored in `%LOCALAPPDATA%\LogLens\loglens.db`. Uninstalling keeps them; delete that folder to remove all data.
+Your sessions are stored in `%LOCALAPPDATA%\LogLens\loglens.db` on Windows and `~/Library/Application Support/LogLens/loglens.db` on macOS. Uninstalling keeps them; delete that folder to remove all data.
 
 ## Features
 
@@ -91,15 +112,16 @@ Lines without a timestamp are attached to the previous entry (stack traces, long
 
 LogLens is a regular ASP.NET Core MVC web app running inside a Windows desktop shell:
 
-- `LogLens.exe` is a windowed app (`WinExe`) that starts a local web server on `http://127.0.0.1:5189` and opens it in your default browser
-- a tray icon (`Desktop/TrayIcon.cs`) replaces the console window
-- the app is published **self-contained** and wrapped by an **Inno Setup** installer that adds desktop and Start Menu shortcuts
+- the app starts a local web server on `http://127.0.0.1:5189` and opens it in your default browser
+- **Windows:** `LogLens.exe` is a windowed app (`WinExe`) with a tray icon (`Desktop/TrayIcon.cs`), published **self-contained** and wrapped by an **Inno Setup** installer that adds desktop and Start Menu shortcuts
+- **macOS:** the same code is built for `osx-arm64` / `osx-x64` (the tray code is Windows-only), packaged as `LogLens.app` (no Dock icon, closed with the **Quit LogLens** button) inside a `.dmg`
+- one project builds both: `-r osx-arm64` / `-r osx-x64` selects the Mac build (see `LogLens.csproj`); anything else builds for Windows
 
 For a full walkthrough (every file, the icon, the installer, the parsing pipeline, and each problem solved along the way), open [Docs/LogLens-Desktop-Guide.html](Docs/LogLens-Desktop-Guide.html).
 
 ## Development
 
-**Requirements:** .NET SDK 9 or later, Windows.
+**Requirements:** .NET SDK 9 or later. Windows for the Windows app; the Mac `.app` / `.dmg` is built on macOS (GitHub Actions does it for you).
 
 ```bash
 dotnet run
@@ -119,6 +141,18 @@ winget install JRSoftware.InnoSetup
 
 Then run `publish.bat`. It publishes the app and builds `installer/output/LogLens-Setup.exe`.
 
+### Build the Mac app
+
+On a Mac:
+
+```bash
+bash installer/macos/build-app.sh osx-arm64 1.1.0
+```
+
+Use `osx-x64` for Intel Macs. Output: `installer/output/LogLens-mac-AppleSilicon.dmg` (or `-Intel.dmg`). The app is ad-hoc signed, which is free and needs no Apple account.
+
+On Windows you can check that the Mac version compiles with `dotnet publish LogLens.csproj -c Release -r osx-arm64 --self-contained true`.
+
 ### Release a new version
 
 Pick the next version number (for example `v1.0.4`), then:
@@ -128,11 +162,11 @@ git tag -a v1.0.4 -m "LogLens 1.0.4"
 git push origin v1.0.4
 ```
 
-The version is taken from the tag and stamped into the installer. The **Release** GitHub Actions workflow runs the tests, builds the installer and attaches it to a **draft** GitHub Release. Download and test the draft, then click **Publish release**. The download link above always points to the newest published release.
+The version is taken from the tag and stamped into the installer. The **Release** GitHub Actions workflow runs the tests, builds the Windows installer and both Mac disk images, starts the Mac app once to check it works, and attaches all three downloads to a **draft** GitHub Release. Download and test the draft, then click **Publish release**. The download link above always points to the newest published release.
 
 ### Change the icon
 
-The editable sources are in `Assets/Icon/` (`LogLens.svg` for large sizes, `LogLens-small.svg` for 16–32 px). Export PNGs at 16, 24, 32, 48, 64, 128 and 256 px, pack them into `LogLens.ico`, and rebuild. The exe, shortcuts, tray icon and installer all use it; `wwwroot/favicon.ico` is the browser tab icon.
+The editable sources are in `Assets/Icon/` (`LogLens.svg` for large sizes, `LogLens-small.svg` for 16–32 px). Export PNGs at 16, 24, 32, 48, 64, 128 and 256 px, pack them into `LogLens.ico`, and rebuild. The exe, shortcuts, tray icon and installer all use it; `wwwroot/favicon.ico` is the browser tab icon. The Mac icon is `Assets/Icon/LogLens.icns`, made from `LogLens-mac-1024.png`.
 
 ## Project structure
 
@@ -145,10 +179,11 @@ The editable sources are in `Assets/Icon/` (`LogLens.svg` for large sizes, `LogL
 | `Data/AppDbContext.cs` | SQLite schema and indexes |
 | `Models/` | Sessions, entries and view models |
 | `Views/`, `wwwroot/` | Razor pages, CSS and JavaScript (including the virtual scroller) |
-| `installer/LogLens.iss` | Inno Setup installer script |
-| `.github/workflows/release.yml` | Builds draft releases on `v*` tags |
+| `installer/LogLens.iss` | Inno Setup installer script (Windows) |
+| `installer/macos/` | `Info.plist` and `build-app.sh`: builds `LogLens.app` and the `.dmg` (macOS) |
+| `.github/workflows/release.yml` | Builds the Windows and Mac downloads into a draft release on `v*` tags |
 | `LogLens.Tests/` | xUnit tests for the parser |
-| `Assets/Icon/` | Editable SVG sources of the app icon |
+| `Assets/Icon/` | Editable SVG sources of the app icon, and the Mac icon (`LogLens.icns`) |
 | `Docs/LogLens-Desktop-Guide.html` | Full technical guide |
 
 ## Security
@@ -164,6 +199,8 @@ The editable sources are in `Assets/Icon/` (`LogLens.svg` for large sizes, `LogL
 | Problem | Fix |
 | --- | --- |
 | "Windows protected your PC" | Click **More info → Run anyway**. |
+| macOS: "LogLens" Not Opened / can't be verified | **System Settings → Privacy & Security → Open Anyway** (only the first time). Or in Terminal: `xattr -dr com.apple.quarantine /Applications/LogLens.app` |
+| macOS: how do I close LogLens? | Click **Quit LogLens** at the top of the page. |
 | A page looks unstyled after updating | Press **Ctrl+F5** once to refresh cached files. |
 | "LogLens could not start" | Another program is using port 5189. Close it, or change `DefaultPort` in `Program.cs`. |
 | Nothing happens when opening LogLens | It's already running: look for the tray icon, or open `http://127.0.0.1:5189`. |

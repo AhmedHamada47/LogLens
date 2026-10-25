@@ -158,6 +158,23 @@ body {
     background: var(--accent-glow);
 }
 
+/* macOS only: stops the app (there is no tray icon) */
+.quit-btn {
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xs);
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    height: 34px;
+    padding: 0 0.75rem;
+    cursor: pointer;
+    transition: var(--transition);
+}
+.quit-btn:hover {
+    border-color: var(--error-border);
+    color: var(--error);
+}
+
 /* ===== NAVBAR ===== */
 .navbar-main {
     background: rgba(10, 14, 20, 0.85);

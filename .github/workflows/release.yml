@@ -1,9 +1,12 @@
 name: Release
 
-# Push a tag like v1.0.0 to build the Windows installer and attach it to a draft GitHub Release.
-# Test the draft, then click "Publish release" to make the download link live.
-# Permanent download link for the newest version:
-#   https://github.com/<owner>/<repo>/releases/latest/download/LogLens-Setup.exe
+# Push a tag like v1.0.0 to build LogLens for Windows and macOS and attach the downloads to a draft GitHub Release.
+# Test the draft, then click "Publish release" to make the download links live.
+# Permanent download links for the newest version:
+#   https://github.com/<owner>/<repo>/releases/latest/download/LogLens-Setup.exe               (Windows)
+#   https://github.com/<owner>/<repo>/releases/latest/download/LogLens-mac-AppleSilicon.dmg    (Mac, M1 or newer)
+#   https://github.com/<owner>/<repo>/releases/latest/download/LogLens-mac-Intel.dmg           (Mac, Intel)
+# "Run workflow" (manual run) builds and checks everything without creating a release.
 on:
   push:
     tags: ['v*']
@@ -13,7 +16,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,14 +41,59 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: LogLens-Setup
+          name: windows
           path: installer/output/LogLens-Setup.exe
 
+  macos:
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false              # build both even if one fails, to see every problem at once
+      matrix:
+        rid: [osx-arm64, osx-x64]   # Apple Silicon (M1 or newer) and Intel Macs
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Build LogLens.app and .dmg
+        run: |
+          version=$([ "$GITHUB_REF_TYPE" = "tag" ] && echo "${GITHUB_REF_NAME#v}" || echo "0.0.0")
+          bash installer/macos/build-app.sh ${{ matrix.rid }} "$version"
+
+      # The build machine is an Apple Silicon Mac, so the arm64 app can really be started here
+      - name: Smoke test (the app starts and serves its pages)
+        if: matrix.rid == 'osx-arm64'
+        run: |
+          installer/output/macos/osx-arm64/LogLens.app/Contents/MacOS/LogLens > smoke.log 2>&1 &
+          pid=$!
+          for i in $(seq 1 30); do curl -sf -o /dev/null http://127.0.0.1:5189/ && break; sleep 1; done
+          curl -sf http://127.0.0.1:5189/ | grep -q "LogLens" || { cat smoke.log; exit 1; }
+          curl -sf -o /dev/null http://127.0.0.1:5189/css/site.css || { echo "styles not served"; cat smoke.log; exit 1; }
+          curl -sf http://127.0.0.1:5189/ | grep -q "Quit LogLens" || { echo "Quit button missing"; exit 1; }
+          kill $pid
+          echo "LogLens started on macOS and served its pages"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-${{ matrix.rid }}
+          path: installer/output/LogLens-mac-*.dmg
+
+  release:
+    needs: [windows, macos]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
       - name: Publish GitHub Release
-        if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
-          files: installer/output/LogLens-Setup.exe
+          files: dist/*
           draft: true
           generate_release_notes: true
           # Created as a draft so it can be tested first; publish it from the Releases page

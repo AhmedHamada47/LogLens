@@ -1,3 +1,4 @@
+#if WINDOWS
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -47,3 +48,4 @@ public static class TrayIcon
         Application.Run();
     }
 }
+#endif

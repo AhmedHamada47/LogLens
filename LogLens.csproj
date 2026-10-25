@@ -1,16 +1,32 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <!-- Building with -r osx-arm64 / -r osx-x64 produces the macOS app; anything else builds the Windows app -->
   <PropertyGroup>
+    <IsMacBuild Condition="$(RuntimeIdentifier.StartsWith('osx'))">true</IsMacBuild>
+  </PropertyGroup>
+
+  <!-- Windows: windowed exe with a tray icon (Windows Forms) -->
+  <PropertyGroup Condition="'$(IsMacBuild)' != 'true'">
     <TargetFramework>net9.0-windows</TargetFramework>
     <OutputType>WinExe</OutputType>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>LogLens.ico</ApplicationIcon>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
-    <PublishSingleFile>false</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+
+  <!-- macOS: plain executable, packaged into LogLens.app by installer/macos/build-app.sh -->
+  <PropertyGroup Condition="'$(IsMacBuild)' == 'true'">
+    <TargetFramework>net9.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <SelfContained>true</SelfContained>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PublishSingleFile>false</PublishSingleFile>
     <AssemblyName>LogLens</AssemblyName>
     <Product>LogLens</Product>
     <Description>Personal Serilog Log Viewer</Description>

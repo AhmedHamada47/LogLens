@@ -61,3 +61,7 @@
 #*.PDF   diff=astextplain
 #*.rtf   diff=astextplain
 #*.RTF   diff=astextplain
+
+# Shell scripts and macOS metadata must keep Unix line endings (they run on macOS)
+*.sh text eol=lf
+*.plist text eol=lf

@@ -5,4 +5,6 @@
 
 `LogLens.ico` (project root) contains 16, 24, 32, 48, 64, 128 and 256 px PNG images rendered from these files. `wwwroot/favicon.ico` (browser tab) contains 16, 32 and 48 px.
 
+`LogLens.icns` is the macOS icon, made from `LogLens-mac-1024.png` (the large artwork on Apple's icon grid: about 80% of the canvas with a soft shadow).
+
 To change the icon, edit these SVGs, export PNGs at those sizes, pack them into `LogLens.ico`, and rebuild.
