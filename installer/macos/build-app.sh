@@ -28,15 +28,19 @@ cp "$ROOT/Assets/Icon/LogLens.icns" "$APP/Contents/Resources/LogLens.icns"
 chmod +x "$APP/Contents/MacOS/LogLens"
 
 echo "== 3/4 Ad-hoc signing (free, no Apple account; Apple Silicon refuses unsigned apps)"
-# Sign every file first, then the bundle, so the signature covers the whole app
-find "$APP/Contents/MacOS" -type f -print0 | xargs -0 -n 50 codesign --force --sign -
+# Order matters: signing the main program checks that everything next to it is already signed,
+# so sign all other files first, then the main program, then the bundle as a whole.
+MAIN="$APP/Contents/MacOS/LogLens"
+find "$APP/Contents/MacOS" -type f ! -path "$MAIN" -print0 | xargs -0 -n 50 codesign --force --sign -
+codesign --force --sign - "$MAIN"
 codesign --force --sign - "$APP"
 codesign --verify --deep --strict "$APP"
 
 echo "== 4/4 Creating the disk image"
 STAGE="$OUT/dmg"
 mkdir -p "$STAGE"
-cp -R "$APP" "$STAGE/"
+ditto "$APP" "$STAGE/LogLens.app"              # ditto keeps the signatures intact
+codesign --verify --deep --strict "$STAGE/LogLens.app"
 ln -s /Applications "$STAGE/Applications"   # drag LogLens onto this to install
 # hdiutil is occasionally "busy" on build machines, so retry a few times
 for attempt in 1 2 3; do

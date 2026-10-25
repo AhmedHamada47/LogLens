@@ -47,6 +47,7 @@ jobs:
   macos:
     runs-on: macos-latest
     strategy:
+      fail-fast: false              # build both even if one fails, to see every problem at once
       matrix:
         rid: [osx-arm64, osx-x64]   # Apple Silicon (M1 or newer) and Intel Macs
     steps:
