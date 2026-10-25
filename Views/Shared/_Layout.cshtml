@@ -23,6 +23,13 @@
                     LogLens
                 </a>
                 <div class="d-flex align-items-center gap-2 ms-auto">
+                    @if (!OperatingSystem.IsWindows())
+                    {
+                        @* macOS has no tray icon to exit from *@
+                        <form asp-controller="Home" asp-action="Quit" method="post" class="m-0">
+                            <button type="submit" class="quit-btn" title="Stop LogLens">Quit LogLens</button>
+                        </form>
+                    }
                     <button class="theme-toggle" id="themeToggle" title="Toggle light/dark mode" aria-label="Toggle light/dark mode">
                         <span id="themeIcon" aria-hidden="true">&#9788;</span>
                     </button>

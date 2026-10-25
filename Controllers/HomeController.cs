@@ -35,6 +35,15 @@ public class HomeController : Controller
         return View(sessions);
     }
 
+    // macOS has no tray icon, so the page offers "Quit LogLens" instead
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult Quit([FromServices] IHostApplicationLifetime lifetime)
+    {
+        lifetime.StopApplication();
+        return View("Stopped");
+    }
+
     [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
     public IActionResult Error()
     {

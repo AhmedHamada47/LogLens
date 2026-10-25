@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- macOS app metadata. __VERSION__ is filled in by build-app.sh -->
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>LogLens</string>
+    <key>CFBundleDisplayName</key>
+    <string>LogLens</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.ahmedhamada.loglens</string>
+    <key>CFBundleExecutable</key>
+    <string>LogLens</string>
+    <key>CFBundleIconFile</key>
+    <string>LogLens</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>__VERSION__</string>
+    <key>CFBundleVersion</key>
+    <string>__VERSION__</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>12.0</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.developer-tools</string>
+    <!-- No Dock icon: LogLens lives in the browser and is closed with "Quit LogLens" (like the tray app on Windows) -->
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+</dict>
+</plist>
