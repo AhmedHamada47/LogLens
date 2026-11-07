@@ -231,4 +231,4 @@ The editable sources are in `Assets/Icon/` (`LogLens.svg` for large sizes, `LogL
 
 ## License
 
-MIT
+[MIT](LICENSE)
