@@ -61,7 +61,7 @@ Requires macOS 12 Monterey or newer. Nothing else to install.
    - open **Insights** for the activity timeline and the top errors
    - click a row to open its full message and stack trace, or **[stack]** to open just the stack trace. Opened rows stay open while you scroll.
    - click **Trace** to see every entry from the same request (correlation ID)
-   - export the current view as **CSV** or **JSON**
+   - click **CSV** or **JSON** to export. The export uses the current **level** filter and **text search**; the time range, regex and correlation filters aren't applied to it.
 
 | Key | Action |
 | --- | --- |
@@ -71,6 +71,7 @@ Requires macOS 12 Monterey or newer. Nothing else to install.
 | `J` / `K` | Scroll down / up |
 | `G` / `Shift+G` | Jump to top / bottom |
 | `?` | Show all shortcuts |
+| `Esc` | Close a panel, or leave the search box |
 
 ### Reading a stack trace
 
@@ -90,7 +91,7 @@ Your sessions are stored in `%LOCALAPPDATA%\LogLens\loglens.db` on Windows and `
 - **Request tracing**: follow a correlation ID across related entries
 - **Insights**: per-minute activity timeline and top-10 errors
 - **Stack trace viewer**: inner exceptions grouped root cause first, "failed here" and "your code" markers, file and line on every frame
-- **Streaming export**: CSV or JSON without loading everything into memory
+- **Streaming export**: CSV or JSON (level and text-search filters) without loading everything into memory
 - **Dark / light theme** and **compact** row density
 - **Private by design**: listens on `127.0.0.1` only; nothing leaves your PC
 - **Single instance**: opening it again just brings up the running app
@@ -107,6 +108,8 @@ The format is detected automatically from the first lines of the file:
 ```
 
 Lines without a timestamp are attached to the previous entry (stack traces, long SQL, and so on), up to 500 lines per entry. Short level names such as `INF`, `WRN`, `ERR`, `DBG`, `FTL` and `VRB` are recognized.
+
+Not supported yet: Serilog's JSON output (`{"@t": …}`; `.json` files are read as plain text), time-only lines such as `[10:00:01 INF]`, and day-first dates such as `21/10/2026`. Lines before the first recognized line are skipped, and a file with no recognized lines gives an empty session.
 
 ## How it works
 
@@ -182,7 +185,7 @@ The editable sources are in `Assets/Icon/` (`LogLens.svg` for large sizes, `LogL
 | --- | --- |
 | `Program.cs` | Startup: single instance, local server, database setup, security headers, browser and tray |
 | `Desktop/TrayIcon.cs` | Tray icon (Open / Exit) and startup error dialog |
-| `Controllers/` | Dashboard, upload, session view, entries API, trace, export, delete |
+| `Controllers/` | Dashboard, upload, session view, entries API, trace, export, delete, and Quit (macOS) |
 | `Services/LogParserService.cs` | Streaming log parser |
 | `Data/AppDbContext.cs` | SQLite schema and indexes |
 | `Models/` | Sessions, entries and view models |
@@ -209,9 +212,10 @@ The editable sources are in `Assets/Icon/` (`LogLens.svg` for large sizes, `LogL
 | "Windows protected your PC" | Click **More info → Run anyway**. |
 | macOS: "LogLens" Not Opened / can't be verified | **System Settings → Privacy & Security → Open Anyway** (only the first time). Or in Terminal: `xattr -dr com.apple.quarantine /Applications/LogLens.app` |
 | macOS: how do I close LogLens? | Click **Quit LogLens** at the top of the page. |
-| A page looks unstyled after updating | Press **Ctrl+F5** once to refresh cached files. |
+| A page looks unstyled after updating | Refresh once without the cache: **Ctrl+F5** on Windows, **Cmd+Shift+R** on Mac. |
 | "LogLens could not start" | Another program is using port 5189. Close it, or change `DefaultPort` in `Program.cs`. |
-| Nothing happens when opening LogLens | It's already running: look for the tray icon, or open `http://127.0.0.1:5189`. |
+| Nothing happens when opening LogLens | It's probably already running: open `http://127.0.0.1:5189`. On Windows, look for the tray icon near the clock. |
+| A session is empty after uploading | None of its lines matched a supported format. See [Supported log formats](#supported-log-formats). |
 | A stack trace looks cut short | Logs uploaded with versions before 1.0.3 kept only 20 stack lines. Upload the file again. |
 | A frame from my own code has no line number | The app that wrote the log was deployed without its `.pdb` files. Include them in the deployment. |
 | The old icon still shows after updating | Windows caches icons. Delete the desktop shortcut and start LogLens from the Start Menu, or sign out and back in. |
